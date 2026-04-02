@@ -1,0 +1,104 @@
+{
+  "ApplicationId": "Dummy_Id",
+  "roomName": "voice_assistant_room_6498",
+  "roomSid": "RM_ne8m6oi9GsLr",
+  "jobId": "AJ_tneeeA9w9TSr",
+  "endedAt": "2026-04-02T02:51:43.741Z",
+  "transcript": [
+    {
+      "role": "assistant",
+      "text": "Selamat siang. Saya mewakili Nusantara Digital Solusi dan akan mewawancarai Anda untuk posisi Software Engineer. Sebelum kita mulai, bolehkah Anda memperkenalkan diri secara singkat, termasuk latar belakang, pengalaman relevan, dan stack teknologi yang paling Anda kuasai?",
+      "createdAt": 1775098055832
+    },
+    {
+      "role": "user",
+      "text": "Ya perkenalkan nama saya Alda Delaz saya sudah bekerja sebagai software engineer selama tiga tahun",
+      "createdAt": 1775098088572
+    },
+    {
+      "role": "assistant",
+      "text": "Terima kasih, Alda, atas perkenalannya. Bisa Anda ceritakan bahasa pemrograman atau framework apa yang paling sering Anda gunakan belakangan ini dalam pekerjaan Anda?",
+      "createdAt": 1775098089422
+    },
+    {
+      "role": "user",
+      "text": "untuk teksteks Saya biasa menggunakan NodeJS Kemudian untuk pembahasan pemrograman menggunakan TypeScript untuk untuk backend framework saya biasa menggunakan NESJS",
+      "createdAt": 1775098112603
+    },
+    {
+      "role": "assistant",
+      "text": "Baik, terima kasih penjelasannya. Selanjutnya, berapa total pengalaman profesional Anda di pengembangan perangkat lunak, dan bahasa atau framework apa yang paling sering Anda gunakan belakangan ini? Meskipun sudah sedikit disampaikan, saya ingin memastikan detailnya.",
+      "createdAt": 1775098113627
+    },
+    {
+      "role": "user",
+      "text": "Oke untuk pengalaman sendiri saya bekerja di 3 perusahaan masingmasing 1 tahun untuk teknologi yang biasa digunakan atau yang paling sering itu typecrypt dan nestjs",
+      "createdAt": 1775098143734
+    },
+    {
+      "role": "assistant",
+      "text": "Terima kasih atas informasinya, Alda. Selanjutnya, bisakah Anda ceritakan satu proyek atau fitur yang menurut Anda paling menantang? Jelaskan masalah yang dihadapi, bagaimana Anda memecahkannya, dan peran apa yang Anda jalankan dalam tim tersebut.",
+      "createdAt": 1775098145549
+    },
+    {
+      "role": "user",
+      "text": "saya pernah menghadapi masalah ketika akan melakukan blasting message itu blasting message sebanyak 3 juta pesan disitu permasalahannya",
+      "createdAt": 1775098174036
+    },
+    {
+      "role": "assistant",
+      "text": "Terima kasih sudah mulai berbagi. Bisa Anda lanjutkan ceritanya tentang permasalahan detail dalam blasting message tersebut? Bagaimana Anda memecahkan masalahnya, dan apa peran Anda di tim saat itu?",
+      "createdAt": 1775098177126
+    },
+    {
+      "role": "user",
+      "text": "tiga juta itu sangat banyak dan membutuhkan waktu sebanyak lebih dari satu hari disitu saya sudah membuat sistem yang bisa menghandle 3 juta notifikasi hanya dalam dua jam",
+      "createdAt": 1775098187759
+    },
+    {
+      "role": "assistant",
+      "text": "Bagus, Alda. Menyederhanakan proses tersebut tentu sangat membantu. Bagaimana Anda memastikan kualitas kode yang Anda tulis, misalnya lewat pengujian, code review, atau standar tim yang Anda ikuti?",
+      "createdAt": 1775098189322
+    },
+    {
+      "role": "user",
+      "text": "Ya, biasanya untuk standar kualitas kode itu antara engineer akan melakukan kode review dan juga setiap ada fitur baru akan dibuat Unity Testnya",
+      "createdAt": 1775098214999
+    },
+    {
+      "role": "assistant",
+      "text": "Terima kasih, Alda. Selanjutnya, ceritakan pengalaman Anda ketika harus mendebug masalah produksi atau bug yang sulit di lingkungan nyata. Langkah apa yang Anda ambil dalam situasi tersebut?",
+      "createdAt": 1775098216433
+    },
+    {
+      "role": "user",
+      "text": "ya langkah yang saya ambil yang pertama adalah bertanya ya kepada para senior atau yang sebelumnya sudah mengerjakan kemudian cari solusi apa yang sebaiknya harus dilakukan",
+      "createdAt": 1775098243302
+    },
+    {
+      "role": "assistant",
+      "text": "Terima kasih, Alda. Terakhir, bagaimana Anda berkolaborasi dengan anggota tim lain seperti product owner, QA, atau engineer lain ketika terjadi perbedaan pendapat tentang solusi teknis?",
+      "createdAt": 1775098244747
+    },
+    {
+      "role": "user",
+      "text": "oke di sini kita pragmati saja jadi ketika ada perbedaan pendapat kita lead tidak harus memaksakan pendapat kita tapi kita harus lihat secara impact mana yang lebih efisien atau yang lebih realistis untuk diimplementasi pada saat",
+      "createdAt": 1775098276827
+    },
+    {
+      "role": "assistant",
+      "text": "Terima kasih banyak, Alda, atas waktu dan jawaban Anda yang jelas. Tim kami akan menghubungi Anda kembali untuk informasi terkait langkah selanjutnya. Semoga hari Anda menyenangkan.",
+      "createdAt": 1775098279643
+    },
+    {
+      "role": "user",
+      "text": "Baik, terima kasih banyak",
+      "createdAt": 1775098294128
+    },
+    {
+      "role": "assistant",
+      "text": "Sama-sama, Alda. Semoga sukses selalu dalam proses ini. Selamat siang.",
+      "createdAt": 1775098295445
+    }
+  ]
+}
