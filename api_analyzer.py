@@ -331,7 +331,7 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
             temperature=0.4
         )
         hasil = json.loads(resp.choices[0].message.content)
-        recommendations = sorted(hasil.get("recommendations", []), key=lambda x: x['match_score'], reverse=True)
+        recommendations = sorted(hasil.get("recommendations", []), key=lambda x: x['match_score'], reverse=True)[:10]
 
         conn = psycopg2.connect(**DB_CONFIG)
         cur = conn.cursor()
