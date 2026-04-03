@@ -9,6 +9,21 @@ AI-powered HRIS REST API untuk menganalisa interview, screening CV, dan rekomend
 - Hasil disimpan otomatis ke PostgreSQL (Railway)
 - Deployed di Railway (auto-deploy dari GitHub)
 
+## Arsitektur & Flow
+
+```
+Client hit endpoint → API return success langsung (tidak menunggu AI selesai)
+                         ↓ (background task)
+              INSERT ke DB dengan status = PROCESSING
+                         ↓
+              AI proses via Groq API (Llama 3.3-70B)
+                         ↓
+              UPDATE DB → status = COMPLETED + result (JSON)
+                       → status = FAILED + error message (jika gagal)
+```
+
+**Cara ambil hasil:** Client query langsung ke database berdasarkan `application_id`.
+
 ## Tech Stack
 
 - Python 3.11 + FastAPI + Uvicorn
@@ -43,6 +58,22 @@ DB_PASSWORD=your_db_password
 ```bash
 uvicorn api_analyzer:app --reload
 ```
+
+## Setup Railway (Production)
+
+1. Buka [railway.app](https://railway.app) → login
+2. Buka project yang sudah ada (atau buat baru)
+3. Klik **"+ New"** → **"GitHub Repo"** → pilih repo `rmfirza/hris_ai_analyzer`
+4. Set branch: `interview-analyzer-agent-ai`, root directory: `/interview-analyzer-agent-ai`
+5. Tambahkan **Variables** di tab Variables:
+   - `GROQ_API_KEY`
+   - `DB_HOST`
+   - `DB_PORT`
+   - `DB_NAME`
+   - `DB_USER`
+   - `DB_PASSWORD`
+6. Buka **Settings** → **Networking** → klik **Generate Domain**
+7. Railway akan otomatis deploy dan redeploy setiap ada push ke GitHub
 
 ## Base URL (Production)
 
@@ -80,14 +111,14 @@ Analisa transkrip wawancara kandidat. Content-Type: `application/json`
 }
 ```
 
-| Field | Type | Wajib |
-|---|---|---|
-| applicationId | string | Ya |
-| jobId | string | Ya |
-| roomName | string | Tidak |
-| roomSid | string | Tidak |
-| endedAt | string | Tidak |
-| transcript | array | Ya |
+| Field | Type | Wajib | Keterangan |
+|---|---|---|---|
+| applicationId | string | Ya | ID unik aplikasi |
+| jobId | string | Ya | ID lowongan |
+| roomName | string | Tidak | Nama room interview |
+| roomSid | string | Tidak | Session ID room |
+| endedAt | string (ISO 8601) | Tidak | Waktu interview selesai |
+| transcript | array | Ya | Minimal 1 item, tidak boleh kosong |
 
 **Response:**
 ```json
@@ -99,6 +130,9 @@ Analisa transkrip wawancara kandidat. Content-Type: `application/json`
 ```
 
 **AI Output (disimpan ke DB):**
+
+Scoring per kategori: **1-10**
+
 ```json
 {
   "score_breakdown": {
@@ -121,14 +155,14 @@ Analisa transkrip wawancara kandidat. Content-Type: `application/json`
 ### `POST /analyze-cv-employer`
 Screening CV kandidat terhadap job description (ATS). Content-Type: `multipart/form-data`
 
-| Field | Type | Wajib |
-|---|---|---|
-| applicationId | string | Ya |
-| jobId | string | Ya |
-| jobTitle | string | Ya |
-| jobRequirements | string | Ya |
-| jobIndustry | string | Tidak |
-| cvFile | file (PDF) | Ya |
+| Field | Type | Wajib | Keterangan |
+|---|---|---|---|
+| applicationId | string | Ya | ID unik aplikasi |
+| jobId | string | Ya | ID lowongan |
+| jobTitle | string | Ya | Nama posisi |
+| jobRequirements | string | Ya | Deskripsi requirement |
+| jobIndustry | string | Tidak | Industri perusahaan |
+| cvFile | file | Ya | Harus format PDF |
 
 **Response:**
 ```json
@@ -141,6 +175,9 @@ Screening CV kandidat terhadap job description (ATS). Content-Type: `multipart/f
 ```
 
 **AI Output (disimpan ke DB):**
+
+`match_score`: **0-100**
+
 ```json
 {
   "match_score": 85,
@@ -155,14 +192,16 @@ Screening CV kandidat terhadap job description (ATS). Content-Type: `multipart/f
 ---
 
 ### `POST /recommend-jobs`
-Rekomendasi lowongan terbaik berdasarkan CV (top 10, score >= 50). Content-Type: `multipart/form-data`
+Rekomendasi lowongan terbaik berdasarkan CV. Content-Type: `multipart/form-data`
 
-| Field | Type | Wajib |
-|---|---|---|
-| applicationId | string | Ya |
-| seekerName | string | Ya |
-| jobs | string (JSON array) | Ya |
-| cvFile | file (PDF) | Ya |
+Hasil: **top 10 rekomendasi**, hanya yang `match_score >= 50`.
+
+| Field | Type | Wajib | Keterangan |
+|---|---|---|---|
+| applicationId | string | Ya | ID unik aplikasi |
+| seekerName | string | Ya | Nama pencari kerja |
+| jobs | string (JSON array) | Ya | Daftar lowongan, harus valid JSON |
+| cvFile | file | Ya | Harus format PDF |
 
 Format `jobs`:
 ```json
@@ -182,6 +221,9 @@ Format `jobs`:
 ```
 
 **AI Output (disimpan ke DB):**
+
+`match_score`: **0-100**, difilter `>= 50`, diurutkan tertinggi, maks 10.
+
 ```json
 [
   {
@@ -203,4 +245,12 @@ Format `jobs`:
 | `ai_cv_analysis_result` | id, application_id, job_id, analyzed_at, status, result |
 | `ai_recommended_job_result` | id, application_id, analyzed_at, status, result |
 
-Status flow: `PROCESSING` → `COMPLETED` / `FAILED`
+**Status flow:** `PROCESSING` → `COMPLETED` (result berisi JSON output AI) / `FAILED` (result berisi error message)
+
+## Validasi
+
+| Rule | Detail |
+|---|---|
+| File CV | Harus format `.pdf`, teks harus bisa diekstrak (bukan scan/gambar kosong) |
+| Transcript | Tidak boleh kosong (minimal 1 item) |
+| Jobs | Harus valid JSON array |

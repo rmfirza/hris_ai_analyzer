@@ -18,6 +18,8 @@ load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
 LLAMA_MODEL = "llama-3.3-70b-versatile"
+MIN_MATCH_SCORE = 50
+MAX_RECOMMENDATIONS = 10
 
 DB_CONFIG = {
     "host": os.getenv("DB_HOST"),
@@ -292,7 +294,7 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
 
         ATURAN SKOR:
         - match_score adalah integer dari 0 sampai 100.
-        - HANYA kembalikan lowongan dengan match_score >= 50.
+        - HANYA kembalikan lowongan dengan match_score >= {MIN_MATCH_SCORE}.
 
         Return ONLY valid JSON dengan format ini:
         {{
@@ -319,8 +321,8 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
             temperature=0.2
         )
         hasil = json.loads(resp.choices[0].message.content)
-        recommendations = [r for r in hasil.get("recommendations", []) if r.get("match_score", 0) >= 50]
-        recommendations = sorted(recommendations, key=lambda x: x['match_score'], reverse=True)[:10]
+        recommendations = [r for r in hasil.get("recommendations", []) if r.get("match_score", 0) >= MIN_MATCH_SCORE]
+        recommendations = sorted(recommendations, key=lambda x: x['match_score'], reverse=True)[:MAX_RECOMMENDATIONS]
 
         db_execute("UPDATE ai_recommended_job_result SET status=%s, analyzed_at=%s, result=%s WHERE id=%s",
                     ("COMPLETED", datetime.utcnow(), json.dumps(recommendations), record_id))
