@@ -214,21 +214,20 @@ def process_cv_analysis(record_id: str, application_id: str, job_id: str, job_ti
         CV KANDIDAT:
         {cv_text}
 
-        === ATURAN EVALUASI (BLIND HIRING & MERITOCRACY) ===
-        1. FOKUS PADA REALITA TEKNIS & KEKURANGAN: Cari tau apakah kandidat benar-benar bisa bekerja sesuai JD.
-        2. SKILLS OVER TITLES: Abaikan perbedaan nama jabatan masa lalu JIKA tech stack-nya relevan.
-        3. SYARAT MUTLAK: Pekerjaan dengan sertifikasi wajib (misal medis/hukum) harus dicek ketat.
+        === ATURAN EVALUASI & SKORING MUTLAK (TAMENG BAJA) ===
+        1. PENALTI CORE DOMAIN (SANGAT PENTING): Jika lowongan membutuhkan spesialisasi inti (misal: Data Engineer butuh Kafka/Airflow/Spark/ETL), dan kandidat HANYA memiliki skill general (Python/SQL/Golang) dari background Backend/Fullstack, BERIKAN SKOR MAKSIMAL 30! Jangan tertipu oleh kecocokan bahasa pemrograman dasar jika ekosistem arsitektur intinya tidak dikuasai.
+        2. PROPORSI REQUIREMENT: Jangan memberikan skor tinggi (>= 50) hanya karena ada 1 atau 2 keyword yang cocok. Evaluasi gambaran besar. Jika alat tempur utama (core tools) dari posisi tersebut tidak ada di CV, hancurkan skornya ke bawah 40.
+        3. SKILLS OVER TITLES: Abaikan perbedaan nama jabatan masa lalu JIKA tech stack intinya benar-benar relevan dan terpenuhi secara proporsional.
         4. KESETARAAN TOOLS: Jangan kaku pada "merk". Hargai tools yang setara (misal MySQL vs PostgreSQL) sebagai fondasi kuat.
-        5. BLIND HIRING: Abaikan gender, umur, ras, atau status pernikahan. Fokus pada skill.
-        6. RECENCY WEIGHTING: Skill yang dipakai di pekerjaan TERAKHIR bobotnya jauh lebih tinggi dari skill 5 tahun lalu.
-        7. OVERQUALIFIED CHECK: Jika CV level Director melamar posisi Junior, beri status "Pertimbangkan" dengan ai_reason "Berpotensi overqualified (Flight Risk)".
-        8. DOMAIN KNOWLEDGE: Jika pernah bekerja di industri yang mirip ({job_industry or 'industri ini'}), jadikan poin plus besar di hr_consideration.
+        5. BLIND HIRING: Abaikan gender, umur, ras. Fokus pada skill teknis mutlak.
+        6. RECENCY WEIGHTING: Skill yang dipakai di pekerjaan TERAKHIR bobotnya jauh lebih tinggi.
+        7. DOMAIN KNOWLEDGE: Jika pernah bekerja di industri yang mirip ({job_industry or 'industri ini'}), jadikan poin plus besar di hr_consideration.
 
         Return ONLY valid JSON dengan format ini:
         {{
             "match_score": 85,
             "recommendation": "Lanjut | Tidak Lanjut | Pertimbangkan",
-            "ai_reason": "1 kalimat tajam menyoroti gap/kekurangan/kelebihan utama",
+            "ai_reason": "1 kalimat tajam menyoroti gap mutlak yang membuat kandidat tidak cocok, atau kelebihan utamanya.",
             "matching_skills": ["skill match 1", "skill match 2"],
             "missing_skills": ["skill mutlak yang hilang 1", "skill mutlak yang hilang 2"],
             "hr_consideration": "Saran level-direktur untuk HR menimbang potensi vs kekurangan teknis."
@@ -284,15 +283,16 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
         DAFTAR LOWONGAN (JSON):
         {json.dumps(jobs_payload)}
 
-        === ATURAN REKOMENDASI KANDIDAT ===
-        1. SUDUT PANDANG (POV) KANDIDAT: Bicaralah LANGSUNG kepada {seeker_name} menggunakan kata ganti "Kamu". DILARANG menggunakan sudut pandang orang ketiga.
-        2. BYPASS FULLSTACK: Pengalaman "Fullstack" di CV = Lulus lowongan "Frontend" atau "Backend".
-        3. ATURAN SKORING POSISI DATA (TAMENG BAJA):
-           - Data Engineer / DWH: Jika TIDAK ADA skill ETL/Airflow/SSIS/PySpark, maksimal skor 30.
-           - Data Analyst / BI: Jika punya SQL, Python, dan Reporting (SSRS), WAJIB berikan skor minimal 75!
-        4. CARA MENULIS 'why_it_fits': WAJIB spesifik menyebutkan tools dari CV dan bandingkan industri perusahaan lama kandidat dengan industri perusahaan lowongan baru.
-        5. GAYA BAHASA: DILARANG pakai kalimat repetitif. Buat mengalir, inspiratif, dan persuasif!
-        6. WHAT TO IMPROVE: Berikan 1 saran teknis spesifik untuk dipelajari guna menutupi requirement yang kurang.
+        === ATURAN SKORING HOLISTIK & PROPORSI SKILL ===
+        1. JANGAN TERPAKU PADA TITLE: Abaikan perbedaan nama jabatan masa lalu. Seorang Fullstack atau Backend bisa saja cocok untuk lowongan Data Engineer asalkan tech-stack dan pemahaman sistem di CV-nya benar-benar memenuhi mayoritas requirement.
+        2. EVALUASI PROPORSI (GAMBARAN BESAR): Ini SANGAT PENTING. Jangan memberikan skor tinggi (>= 50) hanya karena kebetulan cocok di 1 atau 2 tools dasar (seperti sama-sama pakai SQL atau Python). Lu harus membandingkan KESELURUHAN requirement. Jika lowongan meminta 5 core skills spesifik (misal: ETL, Airflow, Spark, Python, BigQuery) dan CV hanya memiliki 2, maka skor maksimal adalah 40 karena mayoritas ekosistemnya tidak terpenuhi.
+        3. TRANSFERABLE SKILLS: Jika industri perusahaan lamanya relevan dengan proses bisnis perusahaan baru, jadikan ini faktor penambah skor, tapi tetap utamakan kecocokan proporsi teknis.
+
+        === CARA MENULIS FEEDBACK ===
+        1. POV: Bicaralah LANGSUNG menggunakan "Kamu".
+        2. DILARANG TEMPLATE KLISE: Buat kalimat yang mengalir dan natural.
+        3. 'why_it_fits': Jelaskan secara komprehensif. Sebut nama perusahaan lamanya, sebut tools dari CV yang match dengan JD, dan jelaskan BAGAIMANA hal tersebut relevan secara gambaran besar. (Contoh: "Pengalamanmu di PT XYZ dalam merancang database dengan PostgreSQL memberikanmu fondasi arsitektur yang kuat untuk beradaptasi dengan kebutuhan data logistik di perusahaan ini.")
+        4. 'what_to_improve': Berikan 1 saran teknis paling krusial untuk menutupi gap terbesar dari requirement yang belum dia miliki.
 
         HANYA kembalikan lowongan dengan match_score (integer) >= {MIN_MATCH_SCORE}.
         Return ONLY valid JSON dengan format ini:
@@ -303,8 +303,8 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
                     "company": "Nama perusahaan",
                     "industry": "Nama industri",
                     "match_score": 85,
-                    "why_it_fits": "Kalimat spesifik yang mengaitkan tools CV dan konteks industri lama dengan industri baru.",
-                    "what_to_improve": "1 hal spesifik yang menjadi gap dan harus dipelajari."
+                    "why_it_fits": "Kalimat spesifik (sebut PT lama, tools, dan konteks gambaran besar).",
+                    "what_to_improve": "1 hal teknis spesifik."
                 }}
             ]
         }}
