@@ -2,6 +2,7 @@ import os
 import io
 import json
 import uuid
+import time
 import fitz
 import psycopg2
 from fastapi import FastAPI, BackgroundTasks, HTTPException, UploadFile, File, Form
@@ -17,8 +18,8 @@ from datetime import datetime
 load_dotenv()
 client = Groq(api_key=os.getenv("GROQ_API_KEY"))
 
-TEXT_MODEL = "llama-3.3-70b-versatile"
-REASONING_MODEL = "openai/gpt-oss-120b"
+# HANYA PAKAI 1 MODEL NGEBUT SEKARANG
+LLAMA_MODEL = "llama-3.3-70b-versatile"
 MIN_MATCH_SCORE = 50
 MAX_RECOMMENDATIONS = 10
 
@@ -30,59 +31,51 @@ DB_CONFIG = {
     "password": os.getenv("DB_PASSWORD"),
 }
 
-app = FastAPI(title="HRIS AI Analyzer API", version="3.0")
+app = FastAPI(title="HRIS AI Analyzer API - LLAMA SPEED", version="3.2")
 
 # ==========================================
 # 2. DB HELPER & SETUP TABLES
 # ==========================================
 def db_execute(query, params=None):
-    conn = psycopg2.connect(**DB_CONFIG)
-    try:
-        cur = conn.cursor()
-        cur.execute(query, params)
-        conn.commit()
-    finally:
-        conn.close()
+    # Menggunakan WITH agar koneksi dan cursor otomatis tertutup dengan aman
+    with psycopg2.connect(**DB_CONFIG) as conn:
+        with conn.cursor() as cur:
+            cur.execute(query, params)
+            conn.commit()
 
 def init_db():
-    conn = psycopg2.connect(**DB_CONFIG)
-    try:
-        cur = conn.cursor()
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS ai_interview_analyzer_result (
-                id              UUID PRIMARY KEY,
-                application_id  VARCHAR(255),
-                job_id          VARCHAR(255),
-                room_id         VARCHAR(255),
-                room_name       VARCHAR(255),
-                interviewed_at  VARCHAR(255),
-                analyzed_at     TIMESTAMP,
-                status          VARCHAR(50),
-                result          JSONB
-            )
-        """)
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS ai_cv_analysis_result (
-                id              UUID PRIMARY KEY,
-                application_id  VARCHAR(255),
-                job_id          VARCHAR(255),
-                analyzed_at     TIMESTAMP,
-                status          VARCHAR(50),
-                result          JSONB
-            )
-        """)
-        cur.execute("""
-            CREATE TABLE IF NOT EXISTS ai_recommended_job_result (
-                id              UUID PRIMARY KEY,
-                application_id  VARCHAR(255),
-                analyzed_at     TIMESTAMP,
-                status          VARCHAR(50),
-                result          JSONB
-            )
-        """)
-        conn.commit()
-    finally:
-        conn.close()
+    db_execute("""
+        CREATE TABLE IF NOT EXISTS ai_interview_analyzer_result (
+            id              UUID PRIMARY KEY,
+            application_id  VARCHAR(255),
+            job_id          VARCHAR(255),
+            room_id         VARCHAR(255),
+            room_name       VARCHAR(255),
+            interviewed_at  VARCHAR(255),
+            analyzed_at     TIMESTAMP,
+            status          VARCHAR(50),
+            result          JSONB
+        )
+    """)
+    db_execute("""
+        CREATE TABLE IF NOT EXISTS ai_cv_analysis_result (
+            id              UUID PRIMARY KEY,
+            application_id  VARCHAR(255),
+            job_id          VARCHAR(255),
+            analyzed_at     TIMESTAMP,
+            status          VARCHAR(50),
+            result          JSONB
+        )
+    """)
+    db_execute("""
+        CREATE TABLE IF NOT EXISTS ai_recommended_job_result (
+            id              UUID PRIMARY KEY,
+            application_id  VARCHAR(255),
+            analyzed_at     TIMESTAMP,
+            status          VARCHAR(50),
+            result          JSONB
+        )
+    """)
     print("[DB] Semua table siap.")
 
 init_db()
@@ -115,9 +108,10 @@ class InterviewPayload(BaseModel):
     transcript: List[TranscriptItem]
 
 # ==========================================
-# 5. BACKGROUND: ANALYZE INTERVIEW (2-STEP)
+# 5. BACKGROUND: ANALYZE INTERVIEW (MERGED LOGIC + TIMER)
 # ==========================================
 def process_interview_background(record_id: str, payload: InterviewPayload):
+    start_time = time.time()
     print(f"\n[BACKGROUND] Mulai analisa interview Job ID: {payload.jobId}...")
 
     db_execute("""
@@ -125,102 +119,67 @@ def process_interview_background(record_id: str, payload: InterviewPayload):
         (id, application_id, job_id, room_id, room_name, interviewed_at, status, result)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
     """, (record_id, payload.applicationId, payload.jobId, payload.roomSid, payload.roomName, payload.endedAt, "PROCESSING", None))
-    print(f"[DB] Record {record_id} — status: PROCESSING")
 
     conversation_history = ""
     for chat in payload.transcript:
         role = "Interviewer" if chat.role == "assistant" else "Candidate"
         conversation_history += f"{role}: {chat.text}\n"
 
+    # MERGE LOGIC: Rubrik asli lu + Guardrails Enterprise gue
+    prompt_analyzer = f"""
+    Lu adalah AI Engineering Manager & Senior Technical Recruiter (Enterprise Level) yang SANGAT TELITI, ANTI-BIAS, dan punya insting tajam.
+    Tugas lu menganalisa TRANSKRIP WAWANCARA KANDIDAT dan memberikan penilaian objektif beserta BUKTI (Evidence).
+
+    TRANSKRIP WAWANCARA:
+    {conversation_history}
+
+    === RUBRIK PENILAIAN MUTLAK & GUARDRAILS ===
+    Berikan skor (1-10) untuk setiap kategori dengan mematuhi aturan berikut:
+    1. ZERO HALLUCINATION: Jika kandidat tidak menyebutkan skill/pengalaman secara eksplisit, asumsikan TIDAK BISA. Jangan menebak.
+    2. COMMUNICATION (BULLSHIT DETECTION): Beri penalti (skor < 6) jika jawaban muter-muter, terlalu banyak teori tanpa contoh nyata, atau menghindari inti pertanyaan.
+    3. TECHNICAL (DEPTH OF KNOWLEDGE): Bedakan "Pernah pakai" vs "Paham cara kerjanya". Skor 8-10 HANYA untuk kandidat yang bisa menjelaskan trade-offs, arsitektur, dan best practice.
+    4. PROBLEM SOLVING (INDEPENDENCE): Nilai rendah jika cara debuggingnya adalah "langsung tanya senior" tanpa inisiatif cek log/isolasi masalah.
+    5. CULTURE FIT (MATURITY): Cari sinyal ownership, teamwork pragmatis, dan cara menerima feedback. Penalti jika egois.
+
+    === ATURAN FORMAT OUTPUT ===
+    Wajib sertakan: "score", "evidence" (kutipan langsung 1-2 kalimat), "strong_signal", dan "red_flag".
+    Jika tidak ada sinyal kuat/red flag, tulis "None".
+
+    Return ONLY valid JSON dengan format ini:
+    {{
+        "score_breakdown": {{
+            "communication": {{ "score": 0, "evidence": "", "strong_signal": "", "red_flag": "" }},
+            "technical": {{ "score": 0, "evidence": "", "strong_signal": "", "red_flag": "" }},
+            "problem_solving": {{ "score": 0, "evidence": "", "strong_signal": "", "red_flag": "" }},
+            "culture_fit": {{ "score": 0, "evidence": "", "strong_signal": "", "red_flag": "" }}
+        }},
+        "ai_evaluation_insight": {{
+            "key_strengths": ["...", "..."],
+            "growth_areas": ["...", "..."]
+        }},
+        "machine_recommendation": "RECOMMENDED FOR HIRE | CONSIDER | REJECT",
+        "executive_summary": "1 kalimat ringkasan tajam."
+    }}
+    """
+
     try:
-        # --- STEP 1: TEXT MODEL — Ekstraksi & kategorisasi transkrip ---
-        step1_prompt = f"""
-        Analisa transkrip wawancara berikut dan ekstrak informasi secara OBJEKTIF tanpa menambahkan asumsi.
-
-        TRANSKRIP:
-        {conversation_history}
-
-        Ekstrak ke dalam 4 kategori berikut:
-        1. COMMUNICATION: Apakah kandidat menjawab langsung ke inti pertanyaan? Atau muter-muter? Kutip 1-2 kalimat bukti.
-        2. TECHNICAL: Skill/teknologi apa saja yang EKSPLISIT disebutkan kandidat? Apakah penjelasannya level permukaan ("pernah pakai") atau mendalam ("paham cara kerjanya", trade-offs, arsitektur)?
-        3. PROBLEM SOLVING: Bagaimana pendekatan kandidat saat menghadapi masalah? Apakah ada inisiatif mandiri (cek log, baca docs, isolasi masalah) atau langsung tanya orang lain?
-        4. CULTURE FIT: Apakah ada sinyal ownership, kolaborasi, atau justru ego? Kutip buktinya.
-
-        Return ONLY valid JSON:
-        {{
-            "communication": {{ "direct_answers": ["kutipan..."], "vague_answers": ["kutipan..."], "notes": "..." }},
-            "technical": {{ "skills_mentioned": ["..."], "deep_understanding": ["..."], "surface_only": ["..."], "notes": "..." }},
-            "problem_solving": {{ "independent_signals": ["..."], "dependent_signals": ["..."], "notes": "..." }},
-            "culture_fit": {{ "ownership_signals": ["..."], "collaboration_signals": ["..."], "ego_signals": ["..."], "notes": "..." }}
-        }}
-        """
-
-        resp1 = client.chat.completions.create(
-            model=TEXT_MODEL,
+        resp = client.chat.completions.create(
+            model=LLAMA_MODEL,
             messages=[
-                {"role": "system", "content": "Lu adalah ekstraktor data dari transkrip wawancara. Ekstrak HANYA fakta yang ada, JANGAN menambahkan asumsi. Output valid JSON."},
-                {"role": "user", "content": step1_prompt}
+                {"role": "system", "content": "You are a strict technical evaluator. Output valid JSON only."},
+                {"role": "user", "content": prompt_analyzer}
             ],
             response_format={"type": "json_object"},
-            temperature=0.0
-        )
-        extracted = resp1.choices[0].message.content
-        print(f"[STEP 1] Ekstraksi transkrip selesai.")
-
-        # --- STEP 2: REASONING MODEL — Scoring & judgment ---
-        step2_prompt = f"""
-        Lu adalah HRD Manager (Enterprise Level) yang SANGAT TELITI, ANTI-BIAS, dan punya insting tajam.
-        Berikut adalah HASIL EKSTRAKSI dari transkrip wawancara kandidat yang sudah dianalisa oleh sistem:
-
-        {extracted}
-
-        === RUBRIK PENILAIAN & GUARDRAILS ===
-        1. ZERO HALLUCINATION: Hanya nilai berdasarkan data ekstraksi di atas. JANGAN menambahkan skill/pengalaman yang tidak ada.
-        2. BULLSHIT DETECTION (COMMUNICATION): Skor < 6 jika banyak vague_answers, muter-muter, atau lack of action.
-        3. DEPTH OF KNOWLEDGE (TECHNICAL): Skor 8-10 HANYA jika ada deep_understanding. Jika hanya surface_only, maksimal 6.
-        4. INDEPENDENCE (PROBLEM SOLVING): Skor rendah jika dependent_signals dominan tanpa independent_signals.
-        5. MATURITY (CULTURE FIT): Cari ownership_signals dan collaboration_signals. Penalti jika ada ego_signals.
-
-        Berikan skor 1-10 per kategori.
-        Wajib sertakan "evidence" (kutipan langsung 1-2 kalimat), "strong_signal", dan "red_flag".
-        Jika tidak ada sinyal kuat/red flag, tulis "None".
-
-        ATURAN "machine_recommendation":
-        - Hanya boleh salah satu dari 3 nilai ini: "RECOMMENDED_FOR_HIRE", "CONSIDER", atau "REJECT".
-
-        Return ONLY valid JSON:
-        {{
-            "score_breakdown": {{
-                "communication": {{ "score": 0, "evidence": "", "strong_signal": "", "red_flag": "" }},
-                "technical": {{ "score": 0, "evidence": "", "strong_signal": "", "red_flag": "" }},
-                "problem_solving": {{ "score": 0, "evidence": "", "strong_signal": "", "red_flag": "" }},
-                "culture_fit": {{ "score": 0, "evidence": "", "strong_signal": "", "red_flag": "" }}
-            }},
-            "ai_evaluation_insight": {{
-                "key_strengths": ["...", "..."],
-                "growth_areas": ["...", "..."]
-            }},
-            "machine_recommendation": "RECOMMENDED_FOR_HIRE | CONSIDER | REJECT",
-            "executive_summary": "1 kalimat ringkasan tajam."
-        }}
-        """
-
-        resp2 = client.chat.completions.create(
-            model=REASONING_MODEL,
-            messages=[
-                {"role": "system", "content": "Lu adalah HRD Manager enterprise yang ketat dan objektif. Scoring berdasarkan DATA SAJA. Output valid JSON."},
-                {"role": "user", "content": step2_prompt}
-            ],
-            response_format={"type": "json_object"},
-            reasoning_effort="high",
             temperature=0.1
         )
-        hasil_json = json.loads(resp2.choices[0].message.content)
-        print(f"[STEP 2] Reasoning & scoring selesai.")
+        hasil_json = json.loads(resp.choices[0].message.content)
+        
+        duration = round(time.time() - start_time, 2)
+        hasil_json["ai_processing_time_seconds"] = duration
+        print(f"[TIMING] Interview selesai dalam {duration} detik.")
 
         db_execute("UPDATE ai_interview_analyzer_result SET status=%s, analyzed_at=%s, result=%s WHERE id=%s",
                     ("COMPLETED", datetime.utcnow(), json.dumps(hasil_json), record_id))
-        print(f"[DB] Record {record_id} — status: COMPLETED")
 
     except Exception as e:
         print(f"[BACKGROUND ERROR] {e}")
@@ -228,111 +187,71 @@ def process_interview_background(record_id: str, payload: InterviewPayload):
                     ("FAILED", datetime.utcnow(), json.dumps({"error": str(e)}), record_id))
 
 # ==========================================
-# 6. BACKGROUND: ANALYZE CV EMPLOYER (2-STEP)
+# 6. BACKGROUND: ANALYZE CV EMPLOYER (MERGED LOGIC + TIMER)
 # ==========================================
 def process_cv_analysis(record_id: str, application_id: str, job_id: str, job_title: str, job_industry: str, job_requirements: str, cv_bytes: bytes):
-    print(f"\n[BACKGROUND] Mulai analisa CV untuk Application ID: {application_id}...")
+    start_time = time.time()
+    print(f"\n[BACKGROUND] Mulai analisa CV App ID: {application_id}...")
 
     db_execute("INSERT INTO ai_cv_analysis_result (id, application_id, job_id, status, result) VALUES (%s, %s, %s, %s, %s)",
                 (record_id, application_id, job_id, "PROCESSING", None))
-    print(f"[DB] Record {record_id} — status: PROCESSING")
 
     try:
         cv_text = extract_text_from_bytes(cv_bytes)
-        if not cv_text:
-            raise ValueError("CV PDF tidak memiliki teks yang bisa diekstrak.")
+        if len(cv_text) < 20: 
+            raise ValueError("CV PDF kosong atau bukan teks yang valid.")
 
-        # --- STEP 1: TEXT MODEL — Matching CV vs JD ---
-        step1_prompt = f"""
-        Bandingkan CV kandidat dengan Job Description berikut secara OBJEKTIF.
+        # MERGE LOGIC: Rule praktis lu + Rule enterprise gue
+        prompt = f"""
+        Lu adalah AI HR Recruiter Senior & Sistem ATS Enterprise yang SANGAT KETAT, ANALITIS, tapi juga BIJAKSANA.
+        Tugas lu mengevaluasi CV kandidat untuk posisi yang sedang dibuka.
 
-        TARGET POSISI:
+        TARGET POSISI (JOB DESCRIPTION):
         Title: {job_title}
-        Industry: {job_industry or 'Umum'}
+        Industry: {job_industry or 'Tidak disebutkan'}
         Requirements: {job_requirements}
 
         CV KANDIDAT:
         {cv_text}
 
-        Ekstrak:
-        1. Skills di CV yang COCOK dengan requirements JD (case-insensitive, termasuk tools setara).
-        2. Skills di JD yang TIDAK ADA di CV.
-        3. Pengalaman kerja terakhir kandidat (posisi, perusahaan, industri).
-        4. Total tahun pengalaman relevan.
-        5. Apakah dokumen ini valid CV? (true/false)
+        === ATURAN EVALUASI (BLIND HIRING & MERITOCRACY) ===
+        1. FOKUS PADA REALITA TEKNIS & KEKURANGAN: Cari tau apakah kandidat benar-benar bisa bekerja sesuai JD.
+        2. SKILLS OVER TITLES: Abaikan perbedaan nama jabatan masa lalu JIKA tech stack-nya relevan.
+        3. SYARAT MUTLAK: Pekerjaan dengan sertifikasi wajib (misal medis/hukum) harus dicek ketat.
+        4. KESETARAAN TOOLS: Jangan kaku pada "merk". Hargai tools yang setara (misal MySQL vs PostgreSQL) sebagai fondasi kuat.
+        5. BLIND HIRING: Abaikan gender, umur, ras, atau status pernikahan. Fokus pada skill.
+        6. RECENCY WEIGHTING: Skill yang dipakai di pekerjaan TERAKHIR bobotnya jauh lebih tinggi dari skill 5 tahun lalu.
+        7. OVERQUALIFIED CHECK: Jika CV level Director melamar posisi Junior, beri status "Pertimbangkan" dengan ai_reason "Berpotensi overqualified (Flight Risk)".
+        8. DOMAIN KNOWLEDGE: Jika pernah bekerja di industri yang mirip ({job_industry or 'industri ini'}), jadikan poin plus besar di hr_consideration.
 
-        Return ONLY valid JSON:
-        {{
-            "is_valid_cv": true,
-            "matching_skills": ["skill1", "skill2"],
-            "missing_skills": ["skill1", "skill2"],
-            "latest_experience": {{ "position": "...", "company": "...", "industry": "..." }},
-            "years_relevant_experience": 0,
-            "notes": "Catatan tambahan jika ada."
-        }}
-        """
-
-        resp1 = client.chat.completions.create(
-            model=TEXT_MODEL,
-            messages=[
-                {"role": "system", "content": "Lu adalah sistem ATS yang mengekstrak dan mencocokkan data CV vs JD. Output valid JSON."},
-                {"role": "user", "content": step1_prompt}
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.0
-        )
-        extracted = resp1.choices[0].message.content
-        print(f"[STEP 1] Matching CV vs JD selesai.")
-
-        # --- STEP 2: REASONING MODEL — Scoring & evaluasi ---
-        step2_prompt = f"""
-        Lu adalah Sistem ATS (Enterprise Level) yang KETAT, OBJEKTIF, dan BIJAKSANA.
-        Berikut HASIL MATCHING CV vs JD yang sudah diekstrak oleh sistem:
-
-        {extracted}
-
-        KONTEKS POSISI:
-        Title: {job_title}
-        Industry: {job_industry or 'Umum'}
-
-        === ATURAN EVALUASI ===
-        1. BLIND HIRING: Abaikan nama, umur, gender, ras, universitas. Fokus 100% pada SKILL dan PENGALAMAN.
-        2. RECENCY WEIGHTING: Skill di pengalaman terakhir bobotnya lebih tinggi.
-        3. OVERQUALIFIED CHECK: Jika pengalaman level Director/VP tapi melamar Junior/Staff, status "Pertimbangkan" dengan ai_reason "Kandidat berpotensi overqualified (Flight Risk)".
-        4. DOMAIN KNOWLEDGE: Hargai pengalaman industri yang sama atau proses bisnis mirip.
-        5. INVALID DOCUMENT: Jika is_valid_cv = false, berikan match_score 0 dan recommendation "Tidak Lanjut".
-
-        ATURAN SKOR:
-        - match_score: integer 0-100.
-        - recommendation: hanya "Lanjut", "Tidak Lanjut", atau "Pertimbangkan".
-
-        Return ONLY valid JSON:
+        Return ONLY valid JSON dengan format ini:
         {{
             "match_score": 85,
             "recommendation": "Lanjut | Tidak Lanjut | Pertimbangkan",
             "ai_reason": "1 kalimat tajam menyoroti gap/kekurangan/kelebihan utama",
             "matching_skills": ["skill match 1", "skill match 2"],
             "missing_skills": ["skill mutlak yang hilang 1", "skill mutlak yang hilang 2"],
-            "hr_consideration": "Saran level-direktur untuk HR."
+            "hr_consideration": "Saran level-direktur untuk HR menimbang potensi vs kekurangan teknis."
         }}
         """
 
-        resp2 = client.chat.completions.create(
-            model=REASONING_MODEL,
+        resp = client.chat.completions.create(
+            model=LLAMA_MODEL,
             messages=[
-                {"role": "system", "content": "Lu adalah sistem ATS enterprise. Evaluasi berdasarkan DATA MATCHING saja. Output valid JSON."},
-                {"role": "user", "content": step2_prompt}
+                {"role": "system", "content": "You are a strict but wise HR ATS API evaluating a candidate. You output valid JSON only."},
+                {"role": "user", "content": prompt}
             ],
             response_format={"type": "json_object"},
-            reasoning_effort="high",
             temperature=0.0
         )
-        hasil = json.loads(resp2.choices[0].message.content)
-        print(f"[STEP 2] Reasoning & scoring selesai.")
+        hasil = json.loads(resp.choices[0].message.content)
+        
+        duration = round(time.time() - start_time, 2)
+        hasil["ai_processing_time_seconds"] = duration
+        print(f"[TIMING] CV selesai dalam {duration} detik.")
 
         db_execute("UPDATE ai_cv_analysis_result SET status=%s, analyzed_at=%s, result=%s WHERE id=%s",
                     ("COMPLETED", datetime.utcnow(), json.dumps(hasil), record_id))
-        print(f"[DB] Record {record_id} — status: COMPLETED")
 
     except Exception as e:
         print(f"[BACKGROUND ERROR] {e}")
@@ -340,94 +259,42 @@ def process_cv_analysis(record_id: str, application_id: str, job_id: str, job_ti
                     ("FAILED", datetime.utcnow(), json.dumps({"error": str(e)}), record_id))
 
 # ==========================================
-# 7. BACKGROUND: RECOMMEND JOBS (2-STEP)
+# 7. BACKGROUND: RECOMMEND JOBS (ORIGINAL FLAVOR + TIMER)
 # ==========================================
 def process_job_recommendation(record_id: str, application_id: str, seeker_name: str, cv_bytes: bytes, jobs: list):
-    print(f"\n[BACKGROUND] Mulai rekomendasi lowongan untuk Application ID: {application_id}...")
+    start_time = time.time()
+    print(f"\n[BACKGROUND] Mulai rekomendasi lowongan App ID: {application_id}...")
 
     db_execute("INSERT INTO ai_recommended_job_result (id, application_id, status, result) VALUES (%s, %s, %s, %s)",
                 (record_id, application_id, "PROCESSING", None))
-    print(f"[DB] Record {record_id} — status: PROCESSING")
 
     try:
         cv_text = extract_text_from_bytes(cv_bytes)
-        if not cv_text:
-            raise ValueError("CV PDF tidak memiliki teks yang bisa diekstrak.")
-
         jobs_payload = [{"id": i, "title": j.get("title",""), "company": j.get("company",""), "industry": j.get("industry",""), "requirements": j.get("requirements","")} for i, j in enumerate(jobs)]
 
-        # --- STEP 1: TEXT MODEL — Matching CV vs semua lowongan ---
-        step1_prompt = f"""
-        Bandingkan CV kandidat dengan SETIAP lowongan di daftar berikut. Ekstrak kecocokan secara OBJEKTIF.
+        # --- MENGGUNAKAN PROMPT ASLI LU YANG TERBUKTI AMPUH ---
+        prompt = f"""
+        Lu adalah AI Career Coach eksklusif untuk {seeker_name}.
+        Tugas lu mencarikan peluang kerja terbaik dari DAFTAR LOWONGAN berdasarkan CV-nya, dan memberikan feedback LANGSUNG kepadanya.
 
-        CV KANDIDAT ({seeker_name}):
+        CV {seeker_name}:
         {cv_text}
 
-        DAFTAR LOWONGAN:
+        DAFTAR LOWONGAN (JSON):
         {json.dumps(jobs_payload)}
 
-        Untuk SETIAP lowongan, ekstrak:
-        1. Skills di CV yang cocok dengan requirements lowongan.
-        2. Skills di requirements yang tidak ada di CV (gap).
-        3. Apakah industri/domain pengalaman kandidat relevan dengan lowongan ini.
+        === ATURAN REKOMENDASI KANDIDAT ===
+        1. SUDUT PANDANG (POV) KANDIDAT: Bicaralah LANGSUNG kepada {seeker_name} menggunakan kata ganti "Kamu". DILARANG menggunakan sudut pandang orang ketiga.
+        2. BYPASS FULLSTACK: Pengalaman "Fullstack" di CV = Lulus lowongan "Frontend" atau "Backend".
+        3. ATURAN SKORING POSISI DATA (TAMENG BAJA):
+           - Data Engineer / DWH: Jika TIDAK ADA skill ETL/Airflow/SSIS/PySpark, maksimal skor 30.
+           - Data Analyst / BI: Jika punya SQL, Python, dan Reporting (SSRS), WAJIB berikan skor minimal 75!
+        4. CARA MENULIS 'why_it_fits': WAJIB spesifik menyebutkan tools dari CV dan bandingkan industri perusahaan lama kandidat dengan industri perusahaan lowongan baru.
+        5. GAYA BAHASA: DILARANG pakai kalimat repetitif. Buat mengalir, inspiratif, dan persuasif!
+        6. WHAT TO IMPROVE: Berikan 1 saran teknis spesifik untuk dipelajari guna menutupi requirement yang kurang.
 
-        Juga ekstrak profil umum kandidat:
-        - Skills utama dari CV.
-        - Pengalaman terakhir (posisi, perusahaan, industri).
-
-        Return ONLY valid JSON:
-        {{
-            "candidate_profile": {{
-                "key_skills": ["..."],
-                "latest_position": "...",
-                "latest_company": "...",
-                "latest_industry": "..."
-            }},
-            "job_matches": [
-                {{
-                    "id": 0,
-                    "job_title": "...",
-                    "company": "...",
-                    "industry": "...",
-                    "matched_skills": ["..."],
-                    "gap_skills": ["..."],
-                    "domain_relevant": true
-                }}
-            ]
-        }}
-        """
-
-        resp1 = client.chat.completions.create(
-            model=TEXT_MODEL,
-            messages=[
-                {"role": "system", "content": "Lu adalah sistem matching CV vs lowongan kerja. Ekstrak kecocokan secara objektif. Output valid JSON."},
-                {"role": "user", "content": step1_prompt}
-            ],
-            response_format={"type": "json_object"},
-            temperature=0.0
-        )
-        extracted = resp1.choices[0].message.content
-        print(f"[STEP 1] Matching CV vs lowongan selesai.")
-
-        # --- STEP 2: REASONING MODEL — Scoring & strategic coaching ---
-        step2_prompt = f"""
-        Lu adalah Elite Career Strategist & Coach eksklusif untuk {seeker_name}.
-        Berikut HASIL MATCHING CV vs daftar lowongan yang sudah diekstrak oleh sistem:
-
-        {extracted}
-
-        === ATURAN REKOMENDASI (STRATEGIC COACHING) ===
-        1. GAYA BAHASA: POV orang pertama ke orang kedua ("Saya melihat kamu..."). Inspiratif, profesional, dan to-the-point. Jangan repetitif.
-        2. BYPASS & EQUIVALENCE: Fullstack bisa masuk Frontend/Backend. SSRS setara dengan dasar Tableau/PowerBI.
-        3. 'WHY IT FITS': Jelaskan korelasi spesifik antara matched_skills dengan requirement, dan bagaimana domain_relevant membawa "unfair advantage".
-        4. 'WHAT TO IMPROVE': Berdasarkan gap_skills, berikan 1 saran paling krusial yang harus dipelajari {seeker_name}.
-        5. SCORING: Pertimbangkan jumlah matched vs gap skills, dan domain relevance.
-
-        ATURAN SKOR:
-        - match_score: integer 0-100.
-        - HANYA kembalikan lowongan dengan match_score >= {MIN_MATCH_SCORE}.
-
-        Return ONLY valid JSON:
+        HANYA kembalikan lowongan dengan match_score (integer) >= {MIN_MATCH_SCORE}.
+        Return ONLY valid JSON dengan format ini:
         {{
             "recommendations": [
                 {{
@@ -435,31 +302,41 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
                     "company": "Nama perusahaan",
                     "industry": "Nama industri",
                     "match_score": 85,
-                    "why_it_fits": "Penjelasan mengapa pengalamannya sangat relevan.",
-                    "what_to_improve": "1 hal spesifik yang menjadi gap dan harus segera dipelajari."
+                    "why_it_fits": "Kalimat spesifik yang mengaitkan tools CV dan konteks industri lama dengan industri baru.",
+                    "what_to_improve": "1 hal spesifik yang menjadi gap dan harus dipelajari."
                 }}
             ]
         }}
         """
 
-        resp2 = client.chat.completions.create(
-            model=REASONING_MODEL,
+        resp = client.chat.completions.create(
+            model=LLAMA_MODEL,
             messages=[
-                {"role": "system", "content": "Lu adalah Elite Career Strategist. Buat rekomendasi berdasarkan DATA MATCHING saja. Output valid JSON."},
-                {"role": "user", "content": step2_prompt}
+                {"role": "system", "content": "You are a personalized Career Coach API. You output valid JSON only and never repeat sentence structures."},
+                {"role": "user", "content": prompt}
             ],
             response_format={"type": "json_object"},
-            reasoning_effort="high",
-            temperature=0.2
+            temperature=0.4 # Suhu 0.4 biar Llama lumayan kreatif nulis why_it_fits-nya
         )
-        hasil = json.loads(resp2.choices[0].message.content)
-        recommendations = [r for r in hasil.get("recommendations", []) if r.get("match_score", 0) >= MIN_MATCH_SCORE]
-        recommendations = sorted(recommendations, key=lambda x: x['match_score'], reverse=True)[:MAX_RECOMMENDATIONS]
-        print(f"[STEP 2] Reasoning & scoring selesai.")
+        
+        hasil = json.loads(resp.choices[0].message.content)
+        
+        # Urutkan berdasarkan skor tertinggi dan ambil maksimal 10 rekomendasi
+        recommendations = sorted(hasil.get("recommendations", []), key=lambda x: x['match_score'], reverse=True)[:MAX_RECOMMENDATIONS]
+        
+        duration = round(time.time() - start_time, 2)
+        
+        # Bungkus hasil akhirnya biar rapi
+        final_result = {
+            "ai_processing_time_seconds": duration,
+            "total_recommended": len(recommendations),
+            "recommendations": recommendations
+        }
+        
+        print(f"[TIMING] Rekomendasi selesai dalam {duration} detik.")
 
         db_execute("UPDATE ai_recommended_job_result SET status=%s, analyzed_at=%s, result=%s WHERE id=%s",
-                    ("COMPLETED", datetime.utcnow(), json.dumps(recommendations), record_id))
-        print(f"[DB] Record {record_id} — status: COMPLETED")
+                    ("COMPLETED", datetime.utcnow(), json.dumps(final_result), record_id))
 
     except Exception as e:
         print(f"[BACKGROUND ERROR] {e}")
@@ -467,81 +344,69 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
                     ("FAILED", datetime.utcnow(), json.dumps({"error": str(e)}), record_id))
 
 # ==========================================
-# 8. ENDPOINTS
+# 8. POST ENDPOINTS
 # ==========================================
 @app.get("/")
 def health_check():
-    return {"status": "ok"}
-
+    return {"status": "ok, LLAMA 3.3 Engine Online!"}
 
 @app.post("/analyze-interview")
 async def analyze_interview(payload: InterviewPayload, background_tasks: BackgroundTasks):
-    print(f"\n[REQUEST /analyze-interview] {payload.model_dump_json(indent=2)}")
-
-    if not payload.transcript:
-        raise HTTPException(status_code=400, detail="Transcript kosong!")
-
+    if not payload.transcript: raise HTTPException(status_code=400, detail="Transcript kosong!")
     record_id = str(uuid.uuid4())
     background_tasks.add_task(process_interview_background, record_id, payload)
-
-    return {
-        "status": "success",
-        "message": "Data berhasil diterima. AI sedang menganalisa di background.",
-        "jobId": payload.jobId
-    }
-
+    return {"status": "success", "message": "Diproses Llama AI di background.", "applicationId": payload.applicationId, "jobId": payload.jobId}
 
 @app.post("/analyze-cv-employer")
 async def analyze_cv_employer(
-    background_tasks: BackgroundTasks,
-    applicationId: str = Form(...),
-    jobId: str = Form(...),
-    jobTitle: str = Form(...),
-    jobRequirements: str = Form(...),
-    jobIndustry: Optional[str] = Form(None),
-    cvFile: UploadFile = File(...)
+    background_tasks: BackgroundTasks, applicationId: str = Form(...), jobId: str = Form(...), jobTitle: str = Form(...),
+    jobRequirements: str = Form(...), jobIndustry: Optional[str] = Form(None), cvFile: UploadFile = File(...)
 ):
-    print(f"\n[REQUEST /analyze-cv-employer] applicationId={applicationId} jobId={jobId} jobTitle={jobTitle}")
-
-    if not cvFile.filename.endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="File harus berformat PDF.")
-
+    if not cvFile.filename.endswith(".pdf"): raise HTTPException(status_code=400, detail="Harus PDF.")
     cv_bytes = await cvFile.read()
     record_id = str(uuid.uuid4())
     background_tasks.add_task(process_cv_analysis, record_id, applicationId, jobId, jobTitle, jobIndustry, jobRequirements, cv_bytes)
-
-    return {
-        "status": "success",
-        "message": "Data berhasil diterima. AI sedang menganalisa di background.",
-        "applicationId": applicationId,
-        "jobId": jobId
-    }
-
+    return {"status": "success", "message": "Diproses Llama AI di background.", "applicationId": applicationId, "jobId": jobId}
 
 @app.post("/recommend-jobs")
 async def recommend_jobs(
-    background_tasks: BackgroundTasks,
-    applicationId: str = Form(...),
-    seekerName: str = Form(...),
-    jobs: str = Form(...),
-    cvFile: UploadFile = File(...)
+    background_tasks: BackgroundTasks, applicationId: str = Form(...), seekerName: str = Form(...),
+    jobs: str = Form(...), cvFile: UploadFile = File(...)
 ):
-    print(f"\n[REQUEST /recommend-jobs] applicationId={applicationId} seekerName={seekerName}")
-
-    if not cvFile.filename.endswith(".pdf"):
-        raise HTTPException(status_code=400, detail="File harus berformat PDF.")
-
-    try:
-        jobs_list = json.loads(jobs)
-    except Exception:
-        raise HTTPException(status_code=400, detail="Field 'jobs' harus berupa JSON array yang valid.")
-
+    if not cvFile.filename.endswith(".pdf"): raise HTTPException(status_code=400, detail="Harus PDF.")
+    try: jobs_list = json.loads(jobs)
+    except Exception: raise HTTPException(status_code=400, detail="Field jobs tidak valid.")
     cv_bytes = await cvFile.read()
     record_id = str(uuid.uuid4())
     background_tasks.add_task(process_job_recommendation, record_id, applicationId, seekerName, cv_bytes, jobs_list)
+    return {"status": "success", "message": "Diproses Llama AI di background.", "applicationId": applicationId}
 
-    return {
-        "status": "success",
-        "message": "Data berhasil diterima. AI sedang mencari rekomendasi lowongan di background.",
-        "applicationId": applicationId
-    }
+# ==========================================
+# 9. GET ENDPOINTS (Berbasis applicationId)
+# ==========================================
+@app.get("/result/interview/{application_id}")
+async def get_interview_result(application_id: str):
+    with psycopg2.connect(**DB_CONFIG) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT status, result FROM ai_interview_analyzer_result WHERE application_id = %s ORDER BY analyzed_at DESC LIMIT 1", (application_id,))
+            row = cur.fetchone()
+    if not row: raise HTTPException(status_code=404, detail="Data tidak ditemukan")
+    return {"application_id": application_id, "status": row[0], "data": row[1]}
+
+@app.get("/result/cv-employer/{application_id}")
+async def get_cv_employer_result(application_id: str):
+    with psycopg2.connect(**DB_CONFIG) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT status, result FROM ai_cv_analysis_result WHERE application_id = %s ORDER BY analyzed_at DESC LIMIT 1", (application_id,))
+            row = cur.fetchone()
+    if not row: raise HTTPException(status_code=404, detail="Data tidak ditemukan")
+    return {"application_id": application_id, "status": row[0], "data": row[1]}
+
+@app.get("/result/recommend-jobs/{application_id}")
+async def get_recommend_jobs_result(application_id: str):
+    with psycopg2.connect(**DB_CONFIG) as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT status, result FROM ai_recommended_job_result WHERE application_id = %s ORDER BY analyzed_at DESC LIMIT 1", (application_id,))
+            row = cur.fetchone()
+    if not row: raise HTTPException(status_code=404, detail="Data tidak ditemukan")
+    return {"application_id": application_id, "status": row[0], "data": row[1]}
