@@ -108,7 +108,7 @@ class InterviewPayload(BaseModel):
     transcript: List[TranscriptItem]
 
 # ==========================================
-# 5. BACKGROUND: ANALYZE INTERVIEW (MERGED LOGIC + TIMER)
+# 5. BACKGROUND: ANALYZE INTERVIEW (WITH MBTI, DISC & QUESTION CONTEXT)
 # ==========================================
 def process_interview_background(record_id: str, payload: InterviewPayload):
     start_time = time.time()
@@ -125,33 +125,38 @@ def process_interview_background(record_id: str, payload: InterviewPayload):
         role = "Interviewer" if chat.role == "assistant" else "Candidate"
         conversation_history += f"{role}: {chat.text}\n"
 
-    # MERGE LOGIC: Rubrik asli lu + Guardrails Enterprise gue
+    # PROMPT DI-UPGRADE DENGAN PSIKOLOGI & KONTEKS PERTANYAAN
     prompt_analyzer = f"""
-    Lu adalah AI Engineering Manager & Senior Technical Recruiter (Enterprise Level) yang SANGAT TELITI, ANTI-BIAS, dan punya insting tajam.
-    Tugas lu menganalisa TRANSKRIP WAWANCARA KANDIDAT dan memberikan penilaian objektif beserta BUKTI (Evidence).
+    Lu adalah AI Engineering Manager, Senior Technical Recruiter, & Psikolog Perilaku (Enterprise Level) yang SANGAT TELITI dan ANTI-BIAS.
+    Tugas lu menganalisa TRANSKRIP WAWANCARA KANDIDAT dan memberikan penilaian objektif, bukti kontekstual, serta profil psikologis kandidat.
 
     TRANSKRIP WAWANCARA:
     {conversation_history}
 
     === RUBRIK PENILAIAN MUTLAK & GUARDRAILS ===
-    Berikan skor (1-10) untuk setiap kategori dengan mematuhi aturan berikut:
-    1. ZERO HALLUCINATION: Jika kandidat tidak menyebutkan skill/pengalaman secara eksplisit, asumsikan TIDAK BISA. Jangan menebak.
-    2. COMMUNICATION (BULLSHIT DETECTION): Beri penalti (skor < 6) jika jawaban muter-muter, terlalu banyak teori tanpa contoh nyata, atau menghindari inti pertanyaan.
-    3. TECHNICAL (DEPTH OF KNOWLEDGE): Bedakan "Pernah pakai" vs "Paham cara kerjanya". Skor 8-10 HANYA untuk kandidat yang bisa menjelaskan trade-offs, arsitektur, dan best practice.
-    4. PROBLEM SOLVING (INDEPENDENCE): Nilai rendah jika cara debuggingnya adalah "langsung tanya senior" tanpa inisiatif cek log/isolasi masalah.
-    5. CULTURE FIT (MATURITY): Cari sinyal ownership, teamwork pragmatis, dan cara menerima feedback. Penalti jika egois.
+    1. ZERO HALLUCINATION: Jika kandidat tidak menyebutkan skill/pengalaman secara eksplisit, asumsikan TIDAK BISA.
+    2. COMMUNICATION: Beri penalti (skor < 6) jika jawaban muter-muter, terlalu banyak teori tanpa contoh nyata.
+    3. TECHNICAL: Bedakan "Pernah pakai" vs "Paham cara kerjanya". Skor 8-10 HANYA untuk kandidat yang bisa menjelaskan trade-offs dan arsitektur.
+    4. PROBLEM SOLVING: Nilai rendah jika cara debuggingnya adalah "langsung tanya senior/DBA" tanpa inisiatif isolasi masalah.
+    5. CULTURE FIT: Cari sinyal ownership, teamwork pragmatis. Penalti keras jika egois atau menyalahkan tim lain (QA/Analyst).
+    6. KONTEKS EVIDENCE (WAJIB): Setiap bukti kutipan jawaban kandidat ("evidence_quote") WAJIB didampingi oleh pertanyaan spesifik yang dilontarkan oleh Interviewer ("question_asked"). Jangan pisahkan konteksnya.
+    7. PSYCHOLOGICAL PROFILING: Berdasarkan cara kandidat menjawab, mengambil keputusan, merespon masalah, dan berinteraksi dengan tim, lakukan estimasi profil MBTI dan DISC kandidat.
 
     === ATURAN FORMAT OUTPUT ===
-    Wajib sertakan: "score", "evidence" (kutipan langsung 1-2 kalimat), "strong_signal", dan "red_flag".
-    Jika tidak ada sinyal kuat/red flag, tulis "None".
-
     Return ONLY valid JSON dengan format ini:
     {{
         "score_breakdown": {{
-            "communication": {{ "score": 0, "evidence": "", "strong_signal": "", "red_flag": "" }},
-            "technical": {{ "score": 0, "evidence": "", "strong_signal": "", "red_flag": "" }},
-            "problem_solving": {{ "score": 0, "evidence": "", "strong_signal": "", "red_flag": "" }},
-            "culture_fit": {{ "score": 0, "evidence": "", "strong_signal": "", "red_flag": "" }}
+            "communication": {{ "score": 0, "question_asked": "Kutipan pertanyaan interviewer", "evidence_quote": "Kutipan jawaban kandidat", "strong_signal": "", "red_flag": "" }},
+            "technical": {{ "score": 0, "question_asked": "Kutipan pertanyaan interviewer", "evidence_quote": "Kutipan jawaban kandidat", "strong_signal": "", "red_flag": "" }},
+            "problem_solving": {{ "score": 0, "question_asked": "Kutipan pertanyaan interviewer", "evidence_quote": "Kutipan jawaban kandidat", "strong_signal": "", "red_flag": "" }},
+            "culture_fit": {{ "score": 0, "question_asked": "Kutipan pertanyaan interviewer", "evidence_quote": "Kutipan jawaban kandidat", "strong_signal": "", "red_flag": "" }}
+        }},
+        "psychological_profile": {{
+            "personality_summary": "1-2 kalimat ringkasan kepribadian berdasarkan gaya bahasa di transkrip.",
+            "estimated_mbti": "Contoh: INTJ",
+            "mbti_reasoning": "Alasan singkat mengapa MBTI ini cocok berdasarkan transkrip.",
+            "estimated_disc": "Contoh: High D, Low S",
+            "disc_reasoning": "Alasan singkat mengapa DISC ini cocok."
         }},
         "ai_evaluation_insight": {{
             "key_strengths": ["...", "..."],
@@ -166,11 +171,11 @@ def process_interview_background(record_id: str, payload: InterviewPayload):
         resp = client.chat.completions.create(
             model=LLAMA_MODEL,
             messages=[
-                {"role": "system", "content": "You are a strict technical evaluator. Output valid JSON only."},
+                {"role": "system", "content": "You are a strict technical evaluator and behavioral psychologist. Output valid JSON only."},
                 {"role": "user", "content": prompt_analyzer}
             ],
             response_format={"type": "json_object"},
-            temperature=0.1
+            temperature=0.2 # Naikin suhu dikit ke 0.2 biar dia bisa nganalisa psikologisnya lebih luwes
         )
         hasil_json = json.loads(resp.choices[0].message.content)
         
