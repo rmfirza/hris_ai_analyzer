@@ -265,6 +265,7 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
     start_time = time.time()
     print(f"\n[BACKGROUND] Mulai rekomendasi lowongan App ID: {application_id}...")
 
+    db_execute("DELETE FROM ai_recommended_job_result WHERE application_id = %s", (application_id,))
     db_execute("INSERT INTO ai_recommended_job_result (id, application_id, status, result) VALUES (%s, %s, %s, %s)",
                 (record_id, application_id, "PROCESSING", None))
 
