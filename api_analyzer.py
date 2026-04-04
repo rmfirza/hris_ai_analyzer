@@ -139,17 +139,17 @@ def process_interview_background(record_id: str, payload: InterviewPayload):
     3. TECHNICAL: Bedakan "Pernah pakai" vs "Paham cara kerjanya". Skor 8-10 HANYA untuk kandidat yang bisa menjelaskan trade-offs dan arsitektur.
     4. PROBLEM SOLVING: Nilai rendah jika cara debuggingnya adalah "langsung tanya senior/DBA" tanpa inisiatif isolasi masalah.
     5. CULTURE FIT: Cari sinyal ownership, teamwork pragmatis. Penalti keras jika egois atau menyalahkan tim lain (QA/Analyst).
-    6. KONTEKS EVIDENCE (WAJIB): Setiap bukti kutipan jawaban kandidat ("evidence_quote") WAJIB didampingi oleh pertanyaan spesifik yang dilontarkan oleh Interviewer ("question_asked"). Jangan pisahkan konteksnya.
+    6. KONTEKS EVIDENCE (WAJIB RUNUT): Ekstrak "question_asked" (pertanyaan interviewer) TERLEBIH DAHULU, lalu diikuti dengan "candidate_answer" (jawaban kandidat), agar alur bacanya logis.
     7. PSYCHOLOGICAL PROFILING: Berdasarkan cara kandidat menjawab, mengambil keputusan, merespon masalah, dan berinteraksi dengan tim, lakukan estimasi profil MBTI dan DISC kandidat.
 
     === ATURAN FORMAT OUTPUT ===
     Return ONLY valid JSON dengan format ini:
     {{
         "score_breakdown": {{
-            "communication": {{ "score": 0, "question_asked": "Kutipan pertanyaan interviewer", "evidence_quote": "Kutipan jawaban kandidat", "strong_signal": "", "red_flag": "" }},
-            "technical": {{ "score": 0, "question_asked": "Kutipan pertanyaan interviewer", "evidence_quote": "Kutipan jawaban kandidat", "strong_signal": "", "red_flag": "" }},
-            "problem_solving": {{ "score": 0, "question_asked": "Kutipan pertanyaan interviewer", "evidence_quote": "Kutipan jawaban kandidat", "strong_signal": "", "red_flag": "" }},
-            "culture_fit": {{ "score": 0, "question_asked": "Kutipan pertanyaan interviewer", "evidence_quote": "Kutipan jawaban kandidat", "strong_signal": "", "red_flag": "" }}
+            "communication": {{ "question_asked": "Kutipan pertanyaan interviewer", "candidate_answer": "Kutipan jawaban kandidat", "score": 0, "strong_signal": "", "red_flag": "" }},
+            "technical": {{ "question_asked": "Kutipan pertanyaan interviewer", "candidate_answer": "Kutipan jawaban kandidat", "score": 0, "strong_signal": "", "red_flag": "" }},
+            "problem_solving": {{ "question_asked": "Kutipan pertanyaan interviewer", "candidate_answer": "Kutipan jawaban kandidat", "score": 0, "strong_signal": "", "red_flag": "" }},
+            "culture_fit": {{ "question_asked": "Kutipan pertanyaan interviewer", "candidate_answer": "Kutipan jawaban kandidat", "score": 0, "strong_signal": "", "red_flag": "" }}
         }},
         "psychological_profile": {{
             "personality_summary": "1-2 kalimat ringkasan kepribadian berdasarkan gaya bahasa di transkrip.",
