@@ -6,6 +6,7 @@ import time
 import fitz
 import psycopg2
 from fastapi import FastAPI, BackgroundTasks, HTTPException, UploadFile, File, Form
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import List, Optional
 from groq import Groq
@@ -47,6 +48,13 @@ DB_CONFIG = {
 }
 
 app = FastAPI(title="HRIS AI Analyzer API - LLAMA SPEED", version="3.2")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # ==========================================
 # 2. DB HELPER & SETUP TABLES
