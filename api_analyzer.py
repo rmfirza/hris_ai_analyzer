@@ -16,7 +16,22 @@ from datetime import datetime
 # 1. SETUP ENVIRONMENT & API CLIENT
 # ==========================================
 load_dotenv()
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+GROQ_API_KEYS = [k for k in [
+    os.getenv("GROQ_API_KEY_1"),
+    os.getenv("GROQ_API_KEY_2"),
+    os.getenv("GROQ_API_KEY_3"),
+] if k]
+
+def groq_chat_with_fallback(**kwargs):
+    last_error = None
+    for key in GROQ_API_KEYS:
+        try:
+            return Groq(api_key=key).chat.completions.create(**kwargs)
+        except Exception as e:
+            print(f"[FALLBACK] Key gagal: {e}, coba key berikutnya...")
+            last_error = e
+    raise last_error
 
 # HANYA PAKAI 1 MODEL NGEBUT SEKARANG
 LLAMA_MODEL = "llama-3.3-70b-versatile"
@@ -120,6 +135,7 @@ def process_interview_background(record_id: str, payload: InterviewPayload):
     print(f"\n[BACKGROUND] Mulai analisa interview Job ID: {payload.jobId}...")
 
     transcript_json = json.dumps([t.dict() for t in payload.transcript])
+    db_execute("DELETE FROM ai_interview_analyzer_result WHERE application_id = %s", (payload.applicationId,))
     db_execute("""
         INSERT INTO ai_interview_analyzer_result
         (id, application_id, job_id, room_id, room_name, interviewed_at, status, result, transcript)
@@ -174,7 +190,7 @@ def process_interview_background(record_id: str, payload: InterviewPayload):
     """
 
     try:
-        resp = client.chat.completions.create(
+        resp = groq_chat_with_fallback(
             model=LLAMA_MODEL,
             messages=[
                 {"role": "system", "content": "You are a strict technical evaluator and behavioral psychologist. Output valid JSON only."},
@@ -245,7 +261,7 @@ def process_cv_analysis(record_id: str, application_id: str, job_id: str, job_ti
         }}
         """
 
-        resp = client.chat.completions.create(
+        resp = groq_chat_with_fallback(
             model=LLAMA_MODEL,
             messages=[
                 {"role": "system", "content": "You are a strict but wise HR ATS API evaluating a candidate. You output valid JSON only."},
@@ -321,7 +337,7 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
         }}
         """
 
-        resp = client.chat.completions.create(
+        resp = groq_chat_with_fallback(
             model=LLAMA_MODEL,
             messages=[
                 {"role": "system", "content": "You are a personalized Career Coach API. You output valid JSON only and never repeat sentence structures."},
