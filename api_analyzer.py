@@ -310,18 +310,24 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
         DAFTAR LOWONGAN (JSON):
         {json.dumps(jobs_payload)}
 
-        === ATURAN SKORING MUTLAK (TAMENG BAJA - ANTI ASUMSI & EVALUASI KONTEKS) ===
-        1. ANTI-ASSUMPTION & CORE REQUIREMENT PENALTY: JANGAN PERNAH berasumsi kandidat menguasai sebuah ekosistem spesialis (misal: Data Engineering, DevOps, Machine Learning) HANYA KARENA mereka menguasai bahasa dasar atau database umum (seperti Python, Golang, SQL). Jika "Core Tools" dari posisi tersebut absen dari CV, BERIKAN SKOR MAKSIMAL 30.
-        2. EVALUASI KONTEKS PENGGUNAAN (SURFACE VS INFRASTRUCTURE) - SANGAT PENTING: Jangan tertipu oleh keberadaan sebuah tool di CV! Menggunakan Docker/Kubernetes sebagai Programmer (hanya untuk menjalankan aplikasi secara lokal) SANGAT BERBEDA dengan DevOps yang merancang arsitektur cloud, CI/CD pipelines, security, dan scaling di level production.
-        Jika kandidat melamar posisi spesialis/infrastruktur tapi konteks pengalaman di CV-nya hanya sebatas "pemakai" (user-level) tanpa ada bukti nyata merancang infrastruktur atau pipeline (misal tidak ada Jenkins, Terraform, CI/CD, arsitektur cloud), POTONG SKORNYA MAKSIMAL 40! DILARANG memberikan skor >= 50.
-        3. EVALUASI PROPORSI (GAMBARAN BESAR): Lu harus membandingkan KESELURUHAN requirement. Jika lowongan meminta 5 core skills spesifik dan CV hanya memiliki 1-2 keahlian fundamentalnya saja, skor maksimal adalah 40.
-        4. TRANSFERABLE SKILLS: Jika industri perusahaan lamanya relevan dengan proses bisnis perusahaan baru, jadikan faktor penambah skor, TAPI syarat poin 1, 2, dan 3 mutlak terpenuhi lebih dulu.
+        === ATURAN SKORING MUTLAK (UNIVERSAL CONTEXT EVALUATION) ===
+        1. BEYOND KEYWORD MATCHING (SURFACE VS SPECIALIST LEVEL): 
+           Jangan berikan skor tinggi hanya karena ada keyword tool yang sama. Evaluasi KONTEKS penggunaannya! Penggunaan tool di level 'User/Programmer' (contoh: memakai Docker untuk run lokal, memakai SQL untuk fitur CRUD, memakai Python untuk web backend) SANGAT BERBEDA dengan penguasaan level 'Specialist/Administrator' (contoh: merancang CI/CD & arsitektur Cloud, merancang Big Data Pipeline, melatih model Machine Learning).
+           Jika lowongan adalah posisi Spesialis/Infrastruktur/Data, namun CV hanya menunjukkan pemakaian tool di level User/Fundamental pendukung, BERIKAN SKOR MAKSIMAL 30.
+
+        2. CORE ECOSYSTEM PENALTY (BERLAKU UNTUK SEMUA ROLE):
+           Setiap peran spesialis pasti memiliki alat/ekosistem intinya sendiri (misal: alat CI/CD/IaC untuk DevOps, alat ETL/Orkestrasi untuk Data Engineer, alat SecOps untuk Security, dll). Jika kandidat HANYA memiliki bahasa pemrograman dasar atau database umum tanpa alat spesifik dari ekosistem inti role tersebut, DILARANG KERAS memberikan skor >= 50.
+
+        3. EVALUASI PROPORSI (GAMBARAN BESAR): 
+           Hitung total requirement utama. Jika lowongan meminta 5 skill inti dan kandidat hanya punya 1 atau 2 skill fundamental pendukung (bukan core), skor maksimal adalah 40.
+
+        4. TRANSFERABLE SKILLS: Jika industri perusahaan lamanya relevan dengan proses bisnis perusahaan baru, jadikan faktor penambah skor, asalkan syarat teknis poin 1 dan 2 sudah terpenuhi minimal 60%.
 
         === CARA MENULIS FEEDBACK ===
         1. POV: Bicaralah LANGSUNG menggunakan "Kamu".
-        2. DILARANG TEMPLATE KLISE: Buat kalimat yang mengalir dan natural.
-        3. 'why_it_fits': Jelaskan secara komprehensif. Sebut nama perusahaan lamanya, sebut tools dari CV yang match dengan JD.
-        4. 'what_to_improve': Berikan 1 saran teknis paling krusial untuk menutupi gap terbesar.
+        2. DILARANG TEMPLATE KLISE: Buat kalimat yang mengalir, natural, dan objektif.
+        3. 'why_it_fits': Jelaskan secara spesifik (sebut PT lama, tools, dan konteks gambaran besarnya).
+        4. 'what_to_improve': Berikan 1 saran teknis paling krusial untuk menutupi gap ekosistem/core tools yang belum dikuasai.
 
         HANYA kembalikan lowongan dengan match_score (integer) >= {MIN_MATCH_SCORE}.
         Return ONLY valid JSON dengan format ini:
