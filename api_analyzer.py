@@ -367,10 +367,10 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
         Lowongan: Data Engineer di perusahaan logistik, requirements: Airflow, Python, SQL, BigQuery.
         → match_score: 82 | why_it_fits: "Pengalamanmu merancang pipeline Airflow di PT XYZ sangat relevan karena arsitektur orkestrasi data yang kamu bangun di fintech memiliki kompleksitas serupa dengan kebutuhan logistik ini." | what_to_improve: "Pelajari BigQuery karena perusahaan ini pakai GCP, bukan PostgreSQL."
 
-        CONTOH 2 — SKOR RENDAH (Surface-Level Tool, Bukan Specialist):
-        CV: 4 tahun Backend Developer, Python/FastAPI, PostgreSQL, pakai Docker untuk run lokal, tidak ada pipeline/orkestrasi.
-        Lowongan: DevOps Engineer, requirements: Kubernetes, Terraform, CI/CD Jenkins, AWS EKS, Prometheus.
-        → match_score: 18 | TIDAK MASUK threshold, tidak perlu direkomendasikan.
+        CONTOH 2 — SKOR RENDAH (Web/App Developer melamar posisi Data Specialist):
+        CV: Fullstack/Backend Developer (NextJS, NestJS, React, PostgreSQL, MongoDB). Tidak ada Airflow, Spark, Kafka, ETL pipeline, atau data lake di CV.
+        Lowongan: Data Engineer, requirements: ETL pipeline, Airflow, Spark, Azure Data Lake, SQL.
+        → match_score: 20 | TIDAK MASUK threshold. PostgreSQL/MongoDB adalah tool yang dipakai sebagai programmer, BUKAN sebagai Data Engineer. Memiliki database umum TIDAK SAMA dengan menguasai ekosistem data engineering.
 
         CONTOH 3 — SKOR SEDANG (Transferable Tapi Core Kurang):
         CV: 2 tahun Mobile Developer (Flutter/Dart), pakai Firebase, REST API, familiar Git & basic CI/CD GitHub Actions.
@@ -400,7 +400,7 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
                 {"role": "user", "content": prompt}
             ],
             response_format={"type": "json_object"},
-            temperature=0.4 # Suhu 0.4 biar Llama lumayan kreatif nulis why_it_fits-nya
+            temperature=0.0
         )
         
         hasil = json.loads(resp.choices[0].message.content)
