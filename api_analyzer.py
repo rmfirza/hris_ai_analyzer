@@ -310,16 +310,17 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
         DAFTAR LOWONGAN (JSON):
         {json.dumps(jobs_payload)}
 
-        === ATURAN SKORING HOLISTIK & PROPORSI SKILL ===
-        1. JANGAN TERPAKU PADA TITLE: Abaikan perbedaan nama jabatan masa lalu. Seorang Fullstack atau Backend bisa saja cocok untuk lowongan Data Engineer asalkan tech-stack dan pemahaman sistem di CV-nya benar-benar memenuhi mayoritas requirement.
-        2. EVALUASI PROPORSI (GAMBARAN BESAR): Ini SANGAT PENTING. Jangan memberikan skor tinggi (>= 50) hanya karena kebetulan cocok di 1 atau 2 tools dasar (seperti sama-sama pakai SQL atau Python). Lu harus membandingkan KESELURUHAN requirement. Jika lowongan meminta 5 core skills spesifik (misal: ETL, Airflow, Spark, Python, BigQuery) dan CV hanya memiliki 2, maka skor maksimal adalah 40 karena mayoritas ekosistemnya tidak terpenuhi.
-        3. TRANSFERABLE SKILLS: Jika industri perusahaan lamanya relevan dengan proses bisnis perusahaan baru, jadikan ini faktor penambah skor, tapi tetap utamakan kecocokan proporsi teknis.
+        === ATURAN SKORING MUTLAK (TAMENG BAJA - ANTI ASUMSI) ===
+        1. ANTI-ASSUMPTION & CORE REQUIREMENT PENALTY (BERLAKU UNTUK SEMUA ROLE): JANGAN PERNAH berasumsi kandidat menguasai sebuah ekosistem spesialis (misal: Data Engineering, DevOps, Machine Learning, Mobile Dev, dll) HANYA KARENA mereka menguasai bahasa pemrograman dasar atau database umum (seperti Python, Golang, SQL, PostgreSQL, atau MySQL).
+        Jika lowongan mensyaratkan "Core Tools" atau arsitektur spesifik tingkat lanjut (contoh: Airflow/Kafka/Spark untuk Data, Kubernetes/Docker/AWS untuk DevOps, TensorFlow untuk ML), maka tools spesifik tersebut WAJIB ADA secara EKSPLISIT di CV. Jika absen, BERIKAN SKOR MAKSIMAL 30. DILARANG KERAS memberikan skor >= 50 hanya bermodal kecocokan bahasa dasar!
+        2. EVALUASI PROPORSI (GAMBARAN BESAR): Lu harus membandingkan KESELURUHAN requirement. Jika lowongan meminta 5 core skills spesifik dan CV hanya memiliki 1-2 keahlian fundamentalnya saja, skor maksimal adalah 40.
+        3. TRANSFERABLE SKILLS: Jika industri perusahaan lamanya relevan dengan proses bisnis perusahaan baru, jadikan ini faktor penambah skor, TAPI syarat teknis mutlak poin 1 dan 2 harus terpenuhi lebih dulu.
 
         === CARA MENULIS FEEDBACK ===
         1. POV: Bicaralah LANGSUNG menggunakan "Kamu".
         2. DILARANG TEMPLATE KLISE: Buat kalimat yang mengalir dan natural.
-        3. 'why_it_fits': Jelaskan secara komprehensif. Sebut nama perusahaan lamanya, sebut tools dari CV yang match dengan JD, dan jelaskan BAGAIMANA hal tersebut relevan secara gambaran besar. (Contoh: "Pengalamanmu di PT XYZ dalam merancang database dengan PostgreSQL memberikanmu fondasi arsitektur yang kuat untuk beradaptasi dengan kebutuhan data logistik di perusahaan ini.")
-        4. 'what_to_improve': Berikan 1 saran teknis paling krusial untuk menutupi gap terbesar dari requirement yang belum dia miliki.
+        3. 'why_it_fits': Jelaskan secara komprehensif. Sebut nama perusahaan lamanya, sebut tools dari CV yang match dengan JD.
+        4. 'what_to_improve': Berikan 1 saran teknis paling krusial untuk menutupi gap terbesar.
 
         HANYA kembalikan lowongan dengan match_score (integer) >= {MIN_MATCH_SCORE}.
         Return ONLY valid JSON dengan format ini:
