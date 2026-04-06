@@ -282,8 +282,14 @@ def process_cv_analysis(record_id: str, application_id: str, job_id: str, job_ti
         CV: 2 tahun sebagai Backend Developer, pakai Docker untuk containerisasi lokal, pernah setup GitHub Actions untuk auto-deploy sederhana, familiar AWS EC2 untuk hosting.
         → match_score: 42 | recommendation: Pertimbangkan | matching_skills: [Docker, GitHub Actions dasar, AWS EC2] | missing_skills: [Kubernetes, Terraform, Jenkins/GitLab CI, Prometheus, Grafana]
 
+        PENTING: Kamu WAJIB mengisi "scoring_analysis" terlebih dahulu sebelum menentukan match_score. Isi field ini dengan:
+        1. List core tools yang dibutuhkan posisi ini
+        2. Tandai mana yang BENAR-BENAR ada di CV (bukan general tools pendukung)
+        3. Hitung proporsinya, lalu tentukan skor
+
         Return ONLY valid JSON dengan format ini:
         {{
+            "scoring_analysis": "Core tools dibutuhkan: [X, Y, Z]. Ada di CV: [X]. Tidak ada: [Y, Z]. Proporsi: 1/3 = 33%. Konteks: kandidat pakai X hanya sebagai user/programmer bukan specialist. Kesimpulan skor: 25.",
             "match_score": 85,
             "recommendation": "Lanjut | Tidak Lanjut | Pertimbangkan",
             "ai_reason": "1 kalimat tajam menyoroti gap mutlak yang membuat kandidat tidak cocok, atau kelebihan utamanya.",
@@ -378,6 +384,12 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
         → match_score: 52 | why_it_fits: "Pengalamanmu mengintegrasikan REST API dan logika state di Flutter memberikan fondasi konsep yang bisa ditransfer ke React, meski ekosistemnya berbeda." | what_to_improve: "Kuasai React + TypeScript secara mendalam karena perbedaan paradigma Flutter vs React cukup signifikan di level production."
 
         HANYA kembalikan lowongan dengan match_score (integer) >= {MIN_MATCH_SCORE}.
+
+        PENTING: Untuk setiap lowongan, kamu WAJIB mengisi "scoring_analysis" terlebih dahulu sebelum menentukan match_score. Isi field ini dengan:
+        1. List core tools yang dibutuhkan lowongan ini
+        2. Tandai mana yang BENAR-BENAR ada di CV (bukan general tools pendukung)
+        3. Hitung proporsinya, lalu tentukan skor
+
         Return ONLY valid JSON dengan format ini:
         {{
             "recommendations": [
@@ -385,7 +397,8 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
                     "job_title": "Nama posisi",
                     "company": "Nama perusahaan",
                     "industry": "Nama industri",
-                    "match_score": 85,
+                    "scoring_analysis": "Core tools dibutuhkan: [X, Y, Z]. Ada di CV: [X]. Tidak ada: [Y, Z]. Proporsi: 1/3 = 33%. Konteks: kandidat pakai X hanya sebagai user/programmer bukan specialist. Kesimpulan skor: 25.",
+                    "match_score": 25,
                     "why_it_fits": "Kalimat spesifik (sebut PT lama, tools, dan konteks gambaran besar).",
                     "what_to_improve": "1 hal teknis spesifik."
                 }}
