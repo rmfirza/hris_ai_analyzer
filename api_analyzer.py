@@ -35,7 +35,7 @@ def groq_chat_with_fallback(**kwargs):
 
 # HANYA PAKAI 1 MODEL NGEBUT SEKARANG
 LLAMA_MODEL = "llama-3.3-70b-versatile"
-MIN_MATCH_SCORE = 50
+MIN_MATCH_SCORE = 65
 MAX_RECOMMENDATIONS = 10
 
 DB_CONFIG = {
@@ -347,6 +347,9 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
 
         DAFTAR LOWONGAN (JSON):
         {json.dumps(jobs_payload)}
+
+        === ATURAN MUTLAK ===
+        0. ZERO HALLUCINATION (PALING PENTING): Kamu DILARANG KERAS berasumsi atau mengarang pengalaman kandidat. Jika CV-nya tidak menyebut secara eksplisit bahwa dia pernah bekerja sebagai Data Engineer, DevOps, ML Engineer, atau role spesialis lainnya — JANGAN PERNAH klaim dia punya pengalaman tersebut. Hanya percaya apa yang tertulis di CV, tidak lebih.
 
         === ATURAN SKORING MUTLAK (UNIVERSAL CONTEXT EVALUATION) ===
         1. BEYOND KEYWORD MATCHING (SURFACE VS SPECIALIST LEVEL): 
