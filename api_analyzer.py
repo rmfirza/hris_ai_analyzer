@@ -160,9 +160,9 @@ def process_interview_background(record_id: str, payload: InterviewPayload):
         "psychological_profile": {{
             "personality_summary": "1-2 kalimat ringkasan kepribadian berdasarkan gaya bahasa di transkrip.",
             "estimated_mbti": "Contoh: INTJ",
-            "mbti_reasoning": "Alasan singkat mengapa MBTI ini cocok berdasarkan transkrip.",
+            "mbti_reasoning": "Jelaskan secara detail MENGAPA tipe MBTI ini cocok. Kutip minimal 2 momen spesifik dari transkrip sebagai bukti (cara kandidat berpikir, merespon masalah, atau mengambil keputusan). Hubungkan ke dimensi MBTI yang relevan (I/E, N/S, T/F, J/P).",
             "estimated_disc": "Contoh: High D, Low S",
-            "disc_reasoning": "Alasan singkat mengapa DISC ini cocok."
+            "disc_reasoning": "Jelaskan secara detail MENGAPA profil DISC ini cocok. Kutip minimal 2 momen spesifik dari transkrip sebagai bukti (cara kandidat berkomunikasi, merespon tekanan, atau berinteraksi dengan tim). Hubungkan ke dimensi DISC yang relevan (D, I, S, C)."
         }},
         "ai_evaluation_insight": {{
             "key_strengths": ["...", "..."],
