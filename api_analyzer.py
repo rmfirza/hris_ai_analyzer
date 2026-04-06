@@ -310,11 +310,12 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
         DAFTAR LOWONGAN (JSON):
         {json.dumps(jobs_payload)}
 
-        === ATURAN SKORING MUTLAK (TAMENG BAJA - ANTI ASUMSI) ===
-        1. ANTI-ASSUMPTION & CORE REQUIREMENT PENALTY (BERLAKU UNTUK SEMUA ROLE): JANGAN PERNAH berasumsi kandidat menguasai sebuah ekosistem spesialis (misal: Data Engineering, DevOps, Machine Learning, Mobile Dev, dll) HANYA KARENA mereka menguasai bahasa pemrograman dasar atau database umum (seperti Python, Golang, SQL, PostgreSQL, atau MySQL).
-        Jika lowongan mensyaratkan "Core Tools" atau arsitektur spesifik tingkat lanjut (contoh: Airflow/Kafka/Spark untuk Data, Kubernetes/Docker/AWS untuk DevOps, TensorFlow untuk ML), maka tools spesifik tersebut WAJIB ADA secara EKSPLISIT di CV. Jika absen, BERIKAN SKOR MAKSIMAL 30. DILARANG KERAS memberikan skor >= 50 hanya bermodal kecocokan bahasa dasar!
-        2. EVALUASI PROPORSI (GAMBARAN BESAR): Lu harus membandingkan KESELURUHAN requirement. Jika lowongan meminta 5 core skills spesifik dan CV hanya memiliki 1-2 keahlian fundamentalnya saja, skor maksimal adalah 40.
-        3. TRANSFERABLE SKILLS: Jika industri perusahaan lamanya relevan dengan proses bisnis perusahaan baru, jadikan ini faktor penambah skor, TAPI syarat teknis mutlak poin 1 dan 2 harus terpenuhi lebih dulu.
+        === ATURAN SKORING MUTLAK (TAMENG BAJA - ANTI ASUMSI & EVALUASI KONTEKS) ===
+        1. ANTI-ASSUMPTION & CORE REQUIREMENT PENALTY: JANGAN PERNAH berasumsi kandidat menguasai sebuah ekosistem spesialis (misal: Data Engineering, DevOps, Machine Learning) HANYA KARENA mereka menguasai bahasa dasar atau database umum (seperti Python, Golang, SQL). Jika "Core Tools" dari posisi tersebut absen dari CV, BERIKAN SKOR MAKSIMAL 30.
+        2. EVALUASI KONTEKS PENGGUNAAN (SURFACE VS INFRASTRUCTURE) - SANGAT PENTING: Jangan tertipu oleh keberadaan sebuah tool di CV! Menggunakan Docker/Kubernetes sebagai Programmer (hanya untuk menjalankan aplikasi secara lokal) SANGAT BERBEDA dengan DevOps yang merancang arsitektur cloud, CI/CD pipelines, security, dan scaling di level production.
+        Jika kandidat melamar posisi spesialis/infrastruktur tapi konteks pengalaman di CV-nya hanya sebatas "pemakai" (user-level) tanpa ada bukti nyata merancang infrastruktur atau pipeline (misal tidak ada Jenkins, Terraform, CI/CD, arsitektur cloud), POTONG SKORNYA MAKSIMAL 40! DILARANG memberikan skor >= 50.
+        3. EVALUASI PROPORSI (GAMBARAN BESAR): Lu harus membandingkan KESELURUHAN requirement. Jika lowongan meminta 5 core skills spesifik dan CV hanya memiliki 1-2 keahlian fundamentalnya saja, skor maksimal adalah 40.
+        4. TRANSFERABLE SKILLS: Jika industri perusahaan lamanya relevan dengan proses bisnis perusahaan baru, jadikan faktor penambah skor, TAPI syarat poin 1, 2, dan 3 mutlak terpenuhi lebih dulu.
 
         === CARA MENULIS FEEDBACK ===
         1. POV: Bicaralah LANGSUNG menggunakan "Kamu".
