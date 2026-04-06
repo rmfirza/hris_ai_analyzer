@@ -343,7 +343,8 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
 
     try:
         cv_text = extract_text_from_bytes(cv_bytes)
-        jobs_payload = [{"id": i, "title": j.get("title",""), "company": j.get("company",""), "industry": j.get("industry",""), "requirements": j.get("requirements","")} for i, j in enumerate(jobs)]
+        jobs_payload = [{"id": i, "job_id": j.get("jobId",""), "title": j.get("title",""), "company": j.get("company",""), "industry": j.get("industry",""), "requirements": j.get("requirements","")} for i, j in enumerate(jobs)]
+        job_id_map = {j.get("title","").strip().lower(): j.get("jobId","") for j in jobs}
 
         # --- MENGGUNAKAN PROMPT ASLI LU YANG TERBUKTI AMPUH ---
         prompt = f"""
@@ -405,6 +406,7 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
         {{
             "recommendations": [
                 {{
+                    "job_id": "jobId dari daftar lowongan",
                     "job_title": "Nama posisi",
                     "company": "Nama perusahaan",
                     "industry": "Nama industri",
@@ -429,6 +431,11 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
         
         hasil = json.loads(resp.choices[0].message.content)
         
+        # Pastikan job_id terisi — fallback ke map by title kalau AI lupa
+        for r in hasil.get("recommendations", []):
+            if not r.get("job_id"):
+                r["job_id"] = job_id_map.get(r.get("job_title","").strip().lower(), "")
+
         # Urutkan berdasarkan skor tertinggi dan ambil maksimal 10 rekomendasi
         recommendations = sorted(hasil.get("recommendations", []), key=lambda x: x['match_score'], reverse=True)[:MAX_RECOMMENDATIONS]
         
