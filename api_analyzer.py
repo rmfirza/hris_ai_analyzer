@@ -54,8 +54,13 @@ def init_db():
             interviewed_at  VARCHAR(255),
             analyzed_at     TIMESTAMP,
             status          VARCHAR(50),
-            result          JSONB
+            result          JSONB,
+            transcript      JSONB
         )
+    """)
+    db_execute("""
+        ALTER TABLE ai_interview_analyzer_result
+        ADD COLUMN IF NOT EXISTS transcript JSONB
     """)
     db_execute("""
         CREATE TABLE IF NOT EXISTS ai_cv_analysis_result (
@@ -114,11 +119,12 @@ def process_interview_background(record_id: str, payload: InterviewPayload):
     start_time = time.time()
     print(f"\n[BACKGROUND] Mulai analisa interview Job ID: {payload.jobId}...")
 
+    transcript_json = json.dumps([t.dict() for t in payload.transcript])
     db_execute("""
         INSERT INTO ai_interview_analyzer_result
-        (id, application_id, job_id, room_id, room_name, interviewed_at, status, result)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-    """, (record_id, payload.applicationId, payload.jobId, payload.roomSid, payload.roomName, payload.endedAt, "PROCESSING", None))
+        (id, application_id, job_id, room_id, room_name, interviewed_at, status, result, transcript)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (record_id, payload.applicationId, payload.jobId, payload.roomSid, payload.roomName, payload.endedAt, "PROCESSING", None, transcript_json))
 
     conversation_history = ""
     for chat in payload.transcript:
@@ -394,10 +400,10 @@ async def recommend_jobs(
 async def get_interview_result(application_id: str):
     with psycopg2.connect(**DB_CONFIG) as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT status, result FROM ai_interview_analyzer_result WHERE application_id = %s ORDER BY analyzed_at DESC LIMIT 1", (application_id,))
+            cur.execute("SELECT status, result, transcript FROM ai_interview_analyzer_result WHERE application_id = %s ORDER BY analyzed_at DESC LIMIT 1", (application_id,))
             row = cur.fetchone()
     if not row: raise HTTPException(status_code=404, detail="Data tidak ditemukan")
-    return {"application_id": application_id, "status": row[0], "data": row[1]}
+    return {"application_id": application_id, "status": row[0], "data": row[1], "transcript": row[2]}
 
 @app.get("/result/cv-employer/{application_id}")
 async def get_cv_employer_result(application_id: str):
