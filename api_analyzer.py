@@ -164,6 +164,22 @@ def process_interview_background(record_id: str, payload: InterviewPayload):
     6. KONTEKS EVIDENCE (WAJIB RUNUT): Ekstrak "question_asked" (pertanyaan interviewer) TERLEBIH DAHULU, lalu diikuti dengan "candidate_answer" (jawaban kandidat), agar alur bacanya logis.
     7. PSYCHOLOGICAL PROFILING: Berdasarkan cara kandidat menjawab, mengambil keputusan, merespon masalah, dan berinteraksi dengan tim, lakukan estimasi profil MBTI dan DISC kandidat.
 
+    === CONTOH KASUS PENILAIAN (PANDUAN KALIBRASI SKOR) ===
+    CONTOH 1 — SKOR TINGGI (Kandidat Kuat):
+    Interviewer: "Bagaimana kamu mendesain sistem yang harus handle 10 juta request per hari?"
+    Kandidat: "Saya akan pakai load balancer di depan, scale horizontally dengan Kubernetes, dan pakai Redis untuk caching hot data. Trade-off-nya adalah complexity operasional meningkat, tapi throughput-nya jauh lebih terjaga."
+    → communication: 9 (konkret, sebut trade-off), technical: 9 (arsitektur jelas), problem_solving: 9 (sistematis), culture_fit: 8. machine_recommendation: RECOMMENDED FOR HIRE.
+
+    CONTOH 2 — SKOR RENDAH (Kandidat Lemah):
+    Interviewer: "Kalau ada bug di production jam 2 pagi, apa yang kamu lakukan?"
+    Kandidat: "Saya mute HP kalau tidur, paling sadar pagi. Kalau error ya saya clear task dulu, biasanya network. Kalau bukan, saya tag senior di Slack biar dia yang handle."
+    → communication: 4 (tidak bertanggung jawab), technical: 3 (tidak ada inisiatif diagnosa), problem_solving: 2 (langsung limpah ke senior), culture_fit: 2 (zero ownership). machine_recommendation: REJECT.
+
+    CONTOH 3 — SKOR SEDANG (Kandidat Perlu Dipertimbangkan):
+    Interviewer: "Ceritakan pengalaman kamu debugging performa database yang lambat."
+    Kandidat: "Pernah, dashboard lambat 5 menit. Saya tambah index di kolom WHERE dan JOIN. Langsung jadi 5 detik. Tapi saya akui waktu itu tidak sempat ukur dampak ke INSERT karena deadline ketat."
+    → communication: 7 (jelas dan jujur), technical: 6 (tahu solusi tapi tidak paham trade-off mendalam), problem_solving: 6 (ada inisiatif tapi belum holistik), culture_fit: 7 (jujur mengakui keterbatasan). machine_recommendation: CONSIDER.
+
     === ATURAN FORMAT OUTPUT ===
     Return ONLY valid JSON dengan format ini:
     {{
@@ -250,6 +266,22 @@ def process_cv_analysis(record_id: str, application_id: str, job_id: str, job_ti
         6. RECENCY WEIGHTING: Skill yang dipakai di pekerjaan TERAKHIR bobotnya jauh lebih tinggi.
         7. DOMAIN KNOWLEDGE: Jika pernah bekerja di industri yang mirip ({job_industry or 'industri ini'}), jadikan poin plus besar di hr_consideration.
 
+        === CONTOH KASUS SKORING (PANDUAN KALIBRASI) ===
+        CONTOH 1 — SKOR TINGGI (Core Tools Terpenuhi):
+        Posisi: Data Engineer | Requirements: Airflow, Spark, Python, PostgreSQL, ETL pipeline
+        CV: 3 tahun sebagai Data Engineer, bangun DAG Airflow untuk orkestrasi ETL harian, pakai PySpark untuk transformasi data 500GB, PostgreSQL sebagai DWH.
+        → match_score: 88 | recommendation: Lanjut | matching_skills: [Airflow, PySpark, PostgreSQL, ETL] | missing_skills: []
+
+        CONTOH 2 — SKOR RENDAH (Hanya Punya Skill Dasar, Core Tools Absen):
+        Posisi: Data Engineer | Requirements: Airflow, Spark, Kafka, ETL pipeline, BigQuery
+        CV: 4 tahun Backend Developer, pakai Python (Django/FastAPI), PostgreSQL untuk CRUD, pernah pakai Docker untuk deploy aplikasi.
+        → match_score: 22 | recommendation: Tidak Lanjut | matching_skills: [Python, PostgreSQL] | missing_skills: [Airflow, Spark, Kafka, ETL pipeline, BigQuery]
+
+        CONTOH 3 — SKOR SEDANG (Sebagian Core Ada, Tapi Tidak Lengkap):
+        Posisi: DevOps Engineer | Requirements: Kubernetes, Terraform, CI/CD (Jenkins/GitLab), AWS, monitoring (Prometheus/Grafana)
+        CV: 2 tahun sebagai Backend Developer, pakai Docker untuk containerisasi lokal, pernah setup GitHub Actions untuk auto-deploy sederhana, familiar AWS EC2 untuk hosting.
+        → match_score: 42 | recommendation: Pertimbangkan | matching_skills: [Docker, GitHub Actions dasar, AWS EC2] | missing_skills: [Kubernetes, Terraform, Jenkins/GitLab CI, Prometheus, Grafana]
+
         Return ONLY valid JSON dengan format ini:
         {{
             "match_score": 85,
@@ -328,6 +360,22 @@ def process_job_recommendation(record_id: str, application_id: str, seeker_name:
         2. DILARANG TEMPLATE KLISE: Buat kalimat yang mengalir, natural, dan objektif.
         3. 'why_it_fits': Jelaskan secara spesifik (sebut PT lama, tools, dan konteks gambaran besarnya).
         4. 'what_to_improve': Berikan 1 saran teknis paling krusial untuk menutupi gap ekosistem/core tools yang belum dikuasai.
+
+        === CONTOH KASUS SKORING (PANDUAN KALIBRASI) ===
+        CONTOH 1 — SKOR TINGGI (Core Ecosystem Match):
+        CV: 3 tahun Data Engineer, bangun ETL pipeline dengan Airflow & PySpark, DWH PostgreSQL, industri fintech.
+        Lowongan: Data Engineer di perusahaan logistik, requirements: Airflow, Python, SQL, BigQuery.
+        → match_score: 82 | why_it_fits: "Pengalamanmu merancang pipeline Airflow di PT XYZ sangat relevan karena arsitektur orkestrasi data yang kamu bangun di fintech memiliki kompleksitas serupa dengan kebutuhan logistik ini." | what_to_improve: "Pelajari BigQuery karena perusahaan ini pakai GCP, bukan PostgreSQL."
+
+        CONTOH 2 — SKOR RENDAH (Surface-Level Tool, Bukan Specialist):
+        CV: 4 tahun Backend Developer, Python/FastAPI, PostgreSQL, pakai Docker untuk run lokal, tidak ada pipeline/orkestrasi.
+        Lowongan: DevOps Engineer, requirements: Kubernetes, Terraform, CI/CD Jenkins, AWS EKS, Prometheus.
+        → match_score: 18 | TIDAK MASUK threshold, tidak perlu direkomendasikan.
+
+        CONTOH 3 — SKOR SEDANG (Transferable Tapi Core Kurang):
+        CV: 2 tahun Mobile Developer (Flutter/Dart), pakai Firebase, REST API, familiar Git & basic CI/CD GitHub Actions.
+        Lowongan: Frontend Developer (React.js), requirements: React, TypeScript, Redux, REST API integration, unit testing.
+        → match_score: 52 | why_it_fits: "Pengalamanmu mengintegrasikan REST API dan logika state di Flutter memberikan fondasi konsep yang bisa ditransfer ke React, meski ekosistemnya berbeda." | what_to_improve: "Kuasai React + TypeScript secara mendalam karena perbedaan paradigma Flutter vs React cukup signifikan di level production."
 
         HANYA kembalikan lowongan dengan match_score (integer) >= {MIN_MATCH_SCORE}.
         Return ONLY valid JSON dengan format ini:
